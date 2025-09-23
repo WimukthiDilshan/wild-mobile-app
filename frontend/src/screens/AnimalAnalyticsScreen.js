@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
+import AIAnalyticsService from '../services/AIAnalyticsService';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -23,6 +24,8 @@ const AnimalAnalyticsScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('search'); // Temporarily set to search for testing
+  const [populationPredictions, setPopulationPredictions] = useState([]);
+  const [conservationInsights, setConservationInsights] = useState([]);
   
   // Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +45,16 @@ const AnimalAnalyticsScreen = ({ route, navigation }) => {
       ]);
       setAnalytics(analyticsData);
       setAllAnimals(animalsData);
+      
+      // Generate AI predictions for population trends
+      if (animalsData && animalsData.length > 0) {
+        const predictions = AIAnalyticsService.predictPopulationTrends(animalsData);
+        const insights = AIAnalyticsService.generateSmartInsights([], animalsData);
+        
+        setPopulationPredictions(predictions);
+        setConservationInsights(insights);
+      }
+      
     } catch (error) {
       console.error('Error loading analytics:', error);
       // Set dummy data for display
@@ -453,6 +466,159 @@ const AnimalAnalyticsScreen = ({ route, navigation }) => {
     );
   };
 
+  const renderAITrends = () => {
+    return (
+      <View>
+        {/* Population Predictions */}
+        <View style={styles.aiPredictionsCard}>
+          <Text style={styles.aiPredictionsTitle}>🔮 AI Population Predictions</Text>
+          <Text style={styles.aiPredictionsSubtitle}>Trend analysis for next 6 months</Text>
+          
+          {populationPredictions.length > 0 ? (
+            populationPredictions.slice(0, 5).map((prediction, index) => (
+              <View key={index} style={styles.predictionSpeciesItem}>
+                <View style={styles.speciesHeader}>
+                  <Text style={styles.speciesName}>🦁 {prediction.species}</Text>
+                  <View style={[styles.trendBadge, { 
+                    backgroundColor: prediction.predictedChange >= 0 ? '#4CAF50' : '#F44336'
+                  }]}>
+                    <Text style={styles.trendText}>
+                      {prediction.predictedChange >= 0 ? '↗️ GROWTH' : '↘️ DECLINE'}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.populationStats}>
+                  <View style={styles.populationStat}>
+                    <Text style={styles.populationNumber}>{prediction.currentPopulation}</Text>
+                    <Text style={styles.populationLabel}>Current</Text>
+                  </View>
+                  <View style={styles.predictionArrow}>
+                    <Text style={styles.arrowText}>
+                      {prediction.predictedChange >= 0 ? '📈' : '📉'}
+                    </Text>
+                  </View>
+                  <View style={styles.populationStat}>
+                    <Text style={[styles.populationNumber, {
+                      color: prediction.predictedChange >= 0 ? '#4CAF50' : '#F44336'
+                    }]}>
+                      {Math.round(prediction.currentPopulation + prediction.predictedChange)}
+                    </Text>
+                    <Text style={styles.populationLabel}>Predicted</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.riskAssessment}>
+                  <View style={styles.riskIndicator}>
+                    <Text style={styles.riskLabel}>Conservation Risk:</Text>
+                    <View style={[styles.riskLevelBadge, {
+                      backgroundColor: prediction.riskLevel >= 7 ? '#F44336' :
+                                     prediction.riskLevel >= 4 ? '#FF9800' : '#4CAF50'
+                    }]}>
+                      <Text style={styles.riskLevelText}>
+                        {prediction.riskLevel >= 7 ? 'HIGH' :
+                         prediction.riskLevel >= 4 ? 'MEDIUM' : 'LOW'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.confidenceText}>
+                    Confidence: {Math.round(prediction.confidence * 100)}%
+                  </Text>
+                </View>
+                
+                {prediction.recommendations && prediction.recommendations.length > 0 && (
+                  <View style={styles.recommendationsContainer}>
+                    <Text style={styles.recommendationsTitle}>💡 AI Recommendations:</Text>
+                    {prediction.recommendations.slice(0, 2).map((rec, recIndex) => (
+                      <Text key={recIndex} style={styles.recommendationText}>
+                        • {rec}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))
+          ) : (
+            <View style={styles.noDataContainer}>
+              <Text style={styles.noDataIcon}>🤖</Text>
+              <Text style={styles.noDataText}>AI Analysis In Progress</Text>
+              <Text style={styles.noDataSubtext}>More data needed for accurate predictions</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Conservation Insights */}
+        {conservationInsights.length > 0 && (
+          <View style={styles.conservationInsightsCard}>
+            <Text style={styles.conservationInsightsTitle}>🧠 AI Conservation Insights</Text>
+            
+            {conservationInsights.map((insight, index) => (
+              <View key={index} style={[styles.conservationInsightItem, {
+                borderLeftColor: insight.priority >= 8 ? '#F44336' :
+                               insight.priority >= 6 ? '#FF9800' : '#4CAF50'
+              }]}>
+                <View style={styles.insightHeaderRow}>
+                  <Text style={styles.insightTitle}>{insight.title}</Text>
+                  <View style={styles.priorityBadge}>
+                    <Text style={styles.priorityText}>P{insight.priority}</Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.insightDescription}>{insight.description}</Text>
+                <Text style={styles.insightRecommendation}>
+                  💡 {insight.recommendation}
+                </Text>
+                
+                <View style={styles.insightFooter}>
+                  <Text style={styles.insightType}>{insight.type}</Text>
+                  <Text style={styles.insightConfidence}>
+                    {Math.round(insight.confidence * 100)}% confidence
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* AI Summary */}
+        <View style={styles.aiSummaryCard}>
+          <Text style={styles.aiSummaryTitle}>📋 AI Analysis Summary</Text>
+          
+          <View style={styles.summaryStats}>
+            <View style={styles.summaryStatItem}>
+              <Text style={styles.summaryStatNumber}>
+                {populationPredictions.filter(p => p.predictedChange < 0).length}
+              </Text>
+              <Text style={styles.summaryStatLabel}>Species at{'\n'}Risk</Text>
+            </View>
+            <View style={styles.summaryStatItem}>
+              <Text style={styles.summaryStatNumber}>
+                {populationPredictions.filter(p => p.riskLevel >= 7).length}
+              </Text>
+              <Text style={styles.summaryStatLabel}>High Risk{'\n'}Species</Text>
+            </View>
+            <View style={styles.summaryStatItem}>
+              <Text style={styles.summaryStatNumber}>
+                {conservationInsights.filter(i => i.priority >= 8).length}
+              </Text>
+              <Text style={styles.summaryStatLabel}>Critical{'\n'}Insights</Text>
+            </View>
+          </View>
+          
+          <View style={styles.overallAssessment}>
+            <Text style={styles.assessmentTitle}>🎯 Overall Assessment</Text>
+            <Text style={styles.assessmentText}>
+              {populationPredictions.filter(p => p.predictedChange < 0).length > 
+               populationPredictions.filter(p => p.predictedChange >= 0).length
+                ? '⚠️ Conservation action needed - declining populations detected'
+                : '✅ Population trends looking stable - continue monitoring'}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
@@ -499,6 +665,13 @@ const AnimalAnalyticsScreen = ({ route, navigation }) => {
               Search
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'ai-trends' && styles.activeTab]}
+            onPress={() => setActiveTab('ai-trends')}>
+            <Text style={[styles.tabText, activeTab === 'ai-trends' && styles.activeTabText]}>
+              AI Trends
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Content */}
@@ -506,6 +679,7 @@ const AnimalAnalyticsScreen = ({ route, navigation }) => {
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'charts' && renderCharts()}
           {activeTab === 'search' && renderSearchResults()}
+          {activeTab === 'ai-trends' && renderAITrends()}
         </View>
 
         {/* Back Button */}
@@ -959,6 +1133,245 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  // AI Trends Styles
+  aiPredictionsCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#9C27B0',
+  },
+  aiPredictionsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  aiPredictionsSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 15,
+  },
+  predictionSpeciesItem: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  speciesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  speciesName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  trendBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  trendText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  populationStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+  },
+  populationStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  populationNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  populationLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  predictionArrow: {
+    paddingHorizontal: 15,
+  },
+  arrowText: {
+    fontSize: 24,
+  },
+  riskAssessment: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  riskIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  riskLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 8,
+  },
+  riskLevelBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  riskLevelText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  confidenceText: {
+    fontSize: 11,
+    color: '#9E9E9E',
+  },
+  recommendationsContainer: {
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 6,
+  },
+  recommendationsTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  recommendationText: {
+    fontSize: 11,
+    color: '#666',
+    marginBottom: 2,
+  },
+  noDataContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  noDataIcon: {
+    fontSize: 48,
+    marginBottom: 10,
+  },
+  noDataText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 5,
+  },
+  noDataSubtext: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+  },
+  // Conservation Insights Styles
+  conservationInsightsCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+  },
+  conservationInsightsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  conservationInsightItem: {
+    marginBottom: 15,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+  },
+  insightHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  priorityBadge: {
+    backgroundColor: '#607D8B',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  insightFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  // AI Summary Styles
+  aiSummaryCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF5722',
+  },
+  aiSummaryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  summaryStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  summaryStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryStatNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF5722',
+  },
+  summaryStatLabel: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  overallAssessment: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+  },
+  assessmentTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 6,
+  },
+  assessmentText: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
   },
 });
 

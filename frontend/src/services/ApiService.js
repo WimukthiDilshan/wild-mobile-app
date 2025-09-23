@@ -1,8 +1,8 @@
 // API service for communicating with the backend
 // Use 10.0.2.2 for Android emulator (maps to localhost on host machine)
 // Use localhost for iOS simulator and physical devices on same network
-//const BASE_URL = 'http://localhost/api';
-const BASE_URL = 'http://192.168.149.134:3000/api';
+const BASE_URL = 'http://10.0.2.2:3000/api';
+//const BASE_URL = 'http://192.168.149.134:3000/api';
 
 class ApiService {
   async fetchAnimals() {

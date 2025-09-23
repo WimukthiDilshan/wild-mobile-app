@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { BarChart, PieChart, LineChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
+import AIAnalyticsService from '../services/AIAnalyticsService';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -21,6 +22,8 @@ const PoachingAnalyticsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [aiInsights, setAiInsights] = useState([]);
+  const [predictions, setPredictions] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -35,6 +38,16 @@ const PoachingAnalyticsScreen = ({ navigation }) => {
       ]);
       setAnalytics(analyticsData);
       setIncidents(incidentsData);
+      
+      // Generate AI insights and predictions
+      if (incidentsData && incidentsData.length > 0) {
+        const insights = AIAnalyticsService.generateSmartInsights(incidentsData, []);
+        const hotspotPredictions = AIAnalyticsService.predictPoachingHotspots(incidentsData);
+        
+        setAiInsights(insights);
+        setPredictions(hotspotPredictions);
+      }
+      
     } catch (error) {
       console.error('Error loading poaching data:', error);
       Alert.alert('Error', 'Failed to load poaching data. Please try again.');
@@ -261,6 +274,151 @@ const PoachingAnalyticsScreen = ({ navigation }) => {
             }}
           />
         </View>
+
+        {/* AI Smart Insights */}
+        {aiInsights.length > 0 && (
+          <View style={styles.aiInsightsCard}>
+            <Text style={styles.aiInsightsTitle}>🤖 AI Smart Insights</Text>
+            {aiInsights.slice(0, 3).map((insight, index) => (
+              <View key={index} style={styles.insightItem}>
+                <View style={styles.insightHeader}>
+                  <Text style={styles.insightTitle}>{insight.title}</Text>
+                  <View style={[styles.confidenceBadge, { 
+                    backgroundColor: insight.confidence >= 0.8 ? '#4CAF50' : 
+                                   insight.confidence >= 0.6 ? '#FF9800' : '#757575'
+                  }]}>
+                    <Text style={styles.confidenceText}>
+                      {Math.round(insight.confidence * 100)}%
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.insightDescription}>{insight.description}</Text>
+                <Text style={styles.insightRecommendation}>💡 {insight.recommendation}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderPredictions = () => {
+    return (
+      <View>
+        {/* Hotspot Predictions */}
+        <View style={styles.predictionsCard}>
+          <Text style={styles.predictionsTitle}>🔮 AI Hotspot Predictions</Text>
+          <Text style={styles.predictionsSubtitle}>Next 30 days risk assessment</Text>
+          
+          {predictions.slice(0, 5).map((prediction, index) => (
+            <View key={index} style={styles.predictionItem}>
+              <View style={styles.predictionHeader}>
+                <Text style={styles.predictionLocation}>{prediction.location}</Text>
+                <View style={[styles.riskBadge, { 
+                  backgroundColor: prediction.predictedRisk >= 7 ? '#F44336' :
+                                 prediction.predictedRisk >= 4 ? '#FF9800' : '#4CAF50'
+                }]}>
+                  <Text style={styles.riskText}>
+                    {prediction.predictedRisk >= 7 ? 'HIGH' :
+                     prediction.predictedRisk >= 4 ? 'MED' : 'LOW'}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.riskMeter}>
+                <View style={[styles.riskFill, { 
+                  width: `${Math.min(prediction.predictedRisk * 10, 100)}%`,
+                  backgroundColor: prediction.predictedRisk >= 7 ? '#F44336' :
+                                 prediction.predictedRisk >= 4 ? '#FF9800' : '#4CAF50'
+                }]} />
+              </View>
+              
+              <Text style={styles.predictionScore}>
+                Risk Score: {prediction.predictedRisk.toFixed(1)}/10
+              </Text>
+              <Text style={styles.predictionRecommendation}>
+                📋 {prediction.recommendation}
+              </Text>
+              
+              {prediction.factors && prediction.factors.length > 0 && (
+                <View style={styles.factorsContainer}>
+                  <Text style={styles.factorsTitle}>Key Factors:</Text>
+                  {prediction.factors.map((factor, factorIndex) => (
+                    <Text key={factorIndex} style={styles.factorText}>
+                      • {factor.description}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+
+        {/* Risk Analysis */}
+        <View style={styles.riskAnalysisCard}>
+          <Text style={styles.riskAnalysisTitle}>📊 Risk Analysis Summary</Text>
+          
+          <View style={styles.riskStats}>
+            <View style={styles.riskStatItem}>
+              <Text style={styles.riskStatNumber}>
+                {predictions.filter(p => p.predictedRisk >= 7).length}
+              </Text>
+              <Text style={styles.riskStatLabel}>High Risk{'\n'}Locations</Text>
+            </View>
+            <View style={styles.riskStatItem}>
+              <Text style={styles.riskStatNumber}>
+                {predictions.filter(p => p.confidence >= 0.8).length}
+              </Text>
+              <Text style={styles.riskStatLabel}>High Confidence{'\n'}Predictions</Text>
+            </View>
+            <View style={styles.riskStatItem}>
+              <Text style={styles.riskStatNumber}>
+                {Math.round(predictions.reduce((sum, p) => sum + p.confidence, 0) / predictions.length * 100) || 0}%
+              </Text>
+              <Text style={styles.riskStatLabel}>Average{'\n'}Confidence</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderAIInsights = () => {
+    return (
+      <View>
+        {/* All AI Insights */}
+        <View style={styles.allInsightsCard}>
+          <Text style={styles.allInsightsTitle}>🧠 Complete AI Analysis</Text>
+          
+          {aiInsights.map((insight, index) => (
+            <View key={index} style={[styles.fullInsightItem, {
+              borderLeftColor: insight.priority >= 8 ? '#F44336' :
+                             insight.priority >= 6 ? '#FF9800' : '#4CAF50'
+            }]}>
+              <View style={styles.insightPriorityHeader}>
+                <Text style={styles.insightTitle}>{insight.title}</Text>
+                <View style={styles.priorityIndicator}>
+                  <Text style={styles.priorityText}>P{insight.priority}</Text>
+                </View>
+              </View>
+              
+              <Text style={styles.insightType}>Type: {insight.type}</Text>
+              <Text style={styles.insightDescription}>{insight.description}</Text>
+              <Text style={styles.insightRecommendation}>
+                💡 Recommendation: {insight.recommendation}
+              </Text>
+              
+              <View style={styles.insightMetrics}>
+                <Text style={styles.confidenceIndicator}>
+                  Confidence: {Math.round(insight.confidence * 100)}%
+                </Text>
+                <Text style={styles.priorityIndicator}>
+                  Priority: {insight.priority}/10
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   };
@@ -354,11 +512,28 @@ const PoachingAnalyticsScreen = ({ navigation }) => {
               Incidents
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'predictions' && styles.activeTab]}
+            onPress={() => setActiveTab('predictions')}>
+            <Text style={[styles.tabText, activeTab === 'predictions' && styles.activeTabText]}>
+              AI Predict
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'insights' && styles.activeTab]}
+            onPress={() => setActiveTab('insights')}>
+            <Text style={[styles.tabText, activeTab === 'insights' && styles.activeTabText]}>
+              AI Insights
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Content */}
         <View style={styles.content}>
-          {activeTab === 'overview' ? renderOverview() : renderIncidents()}
+          {activeTab === 'overview' && renderOverview()}
+          {activeTab === 'incidents' && renderIncidents()}
+          {activeTab === 'predictions' && renderPredictions()}
+          {activeTab === 'insights' && renderAIInsights()}
         </View>
 
         {/* Back Button */}
@@ -606,6 +781,244 @@ const styles = StyleSheet.create({
   incidentReporter: {
     fontSize: 12,
     color: '#999',
+  },
+  // AI Insights Styles
+  aiInsightsCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  aiInsightsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  insightItem: {
+    marginBottom: 15,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  confidenceBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  confidenceText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  insightDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  insightRecommendation: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+  },
+  // Predictions Styles
+  predictionsCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#9C27B0',
+  },
+  predictionsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  predictionsSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 15,
+  },
+  predictionItem: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  predictionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  predictionLocation: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  riskBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  riskText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  riskMeter: {
+    height: 6,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 3,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  riskFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  predictionScore: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  predictionRecommendation: {
+    fontSize: 12,
+    color: '#9C27B0',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  factorsContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 6,
+  },
+  factorsTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  factorText: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 2,
+  },
+  // Risk Analysis Styles
+  riskAnalysisCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF5722',
+  },
+  riskAnalysisTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  riskStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  riskStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  riskStatNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF5722',
+  },
+  riskStatLabel: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  // Full AI Insights Styles
+  allInsightsCard: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 2,
+  },
+  allInsightsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  fullInsightItem: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+  },
+  insightPriorityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  priorityIndicator: {
+    backgroundColor: '#607D8B',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  priorityText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  insightType: {
+    fontSize: 11,
+    color: '#9E9E9E',
+    fontStyle: 'italic',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  insightMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  confidenceIndicator: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: 'bold',
   },
   backButton: {
     backgroundColor: '#757575',
