@@ -187,7 +187,7 @@ app.get('/api/analytics', async (req, res) => {
 // Add new animal
 app.post('/api/animals', async (req, res) => {
   try {
-    const { name, location, count } = req.body;
+    const { name, location, count, habitat, status, description } = req.body;
     
     if (!name || !location || count === undefined) {
       return res.status(400).json({
@@ -200,6 +200,9 @@ app.post('/api/animals', async (req, res) => {
       name,
       location,
       count: parseInt(count),
+      habitat: habitat || '',
+      status: status || 'Not Evaluated',
+      description: description || '',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
