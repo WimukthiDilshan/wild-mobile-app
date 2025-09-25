@@ -1,13 +1,36 @@
 // API service for communicating with the backend
 // Use 10.0.2.2 for Android emulator (maps to localhost on host machine)
 // Use localhost for iOS simulator and physical devices on same network
+import auth from '@react-native-firebase/auth';
+
 const BASE_URL = 'http://10.0.2.2:3000/api';
 //const BASE_URL = 'http://192.168.149.134:3000/api';
 
 class ApiService {
+  async getAuthHeaders() {
+    try {
+      const user = auth().currentUser;
+      if (user) {
+        const token = await user.getIdToken();
+        return {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        };
+      }
+      return {
+        'Content-Type': 'application/json',
+      };
+    } catch (error) {
+      console.error('Error getting auth headers:', error);
+      return {
+        'Content-Type': 'application/json',
+      };
+    }
+  }
   async fetchAnimals() {
     try {
-      const response = await fetch(`${BASE_URL}/animals`);
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/animals`, { headers });
       const data = await response.json();
       
       if (data.success) {
@@ -71,11 +94,10 @@ class ApiService {
 
   async addAnimal(animalData) {
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${BASE_URL}/animals`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(animalData),
       });
       
@@ -95,7 +117,8 @@ class ApiService {
   // Poaching incidents methods
   async fetchPoachingIncidents() {
     try {
-      const response = await fetch(`${BASE_URL}/poaching`);
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/poaching`, { headers });
       const data = await response.json();
       
       if (data.success) {
@@ -127,11 +150,10 @@ class ApiService {
 
   async reportPoachingIncident(incidentData) {
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${BASE_URL}/poaching`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(incidentData),
       });
       

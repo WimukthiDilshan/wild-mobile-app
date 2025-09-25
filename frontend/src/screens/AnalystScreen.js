@@ -15,10 +15,12 @@ import {
 } from 'react-native';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
+import { useAuth } from '../contexts/AuthContext';
 
 const screenWidth = Dimensions.get('window').width;
 
 const AnalystScreen = ({ navigation }) => {
+  const { user, rolePermissions } = useAuth();
   const [analytics, setAnalytics] = useState(null);
   const [animals, setAnimals] = useState([]);
   const [poachingIncidents, setPoachingIncidents] = useState([]);
@@ -26,6 +28,23 @@ const AnalystScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [exportLoading, setExportLoading] = useState(false);
+
+  // Check if user has permission to view analytics
+  if (!rolePermissions?.canViewAnalytics) {
+    return (
+      <View style={styles.permissionDenied}>
+        <Text style={styles.permissionTitle}>🚫 Access Denied</Text>
+        <Text style={styles.permissionText}>
+          Your role ({user?.role}) doesn't have permission to view analytics.
+        </Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   
   // Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -769,6 +788,36 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  permissionDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 20,
+  },
+  permissionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#F44336',
+    marginBottom: 10,
+  },
+  permissionText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  backButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  backButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   loadingContainer: {
     flex: 1,

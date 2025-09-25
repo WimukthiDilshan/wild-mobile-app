@@ -13,8 +13,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import ApiService from '../services/ApiService';
+import { useAuth } from '../contexts/AuthContext';
 
 const InsertAnimalsScreen = ({ navigation }) => {
+  const { userData, getRoleDisplayName, getRoleEmoji } = useAuth();
+  
   const [formData, setFormData] = useState({
     name: '',
     location: '',
@@ -126,6 +129,11 @@ const InsertAnimalsScreen = ({ navigation }) => {
         habitat: formData.habitat.trim(),
         status: formData.status,
         description: formData.description.trim(),
+        // Add logged-in user information
+        addedBy: userData?.displayName || userData?.email || 'Unknown User',
+        addedByUserId: userData?.uid || null,
+        addedByRole: userData?.role || 'unknown',
+        addedAt: new Date().toISOString(),
       };
 
       await ApiService.addAnimal(animalData);
@@ -169,6 +177,13 @@ const InsertAnimalsScreen = ({ navigation }) => {
             <Text style={styles.headerSubtitle}>
               Help us track and protect wildlife populations
             </Text>
+            {userData && (
+              <View style={styles.userInfoContainer}>
+                <Text style={styles.userInfoText}>
+                  {getRoleEmoji(userData.role)} {getRoleDisplayName(userData.role)} • {userData.displayName}
+                </Text>
+              </View>
+            )}
           </View>
 
           <Animated.View style={[styles.formContainer, { transform: [{ translateY: slideAnim }] }]}>
@@ -455,6 +470,26 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     marginTop: 8,
+  },
+  userInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 10,
+    marginHorizontal: 20,
+  },
+  userInfoText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  roleEmoji: {
+    fontSize: 18,
   },
   formContainer: {
     padding: 20,

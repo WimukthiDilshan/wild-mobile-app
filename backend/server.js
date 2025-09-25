@@ -29,6 +29,69 @@ try {
 
 const db = admin.firestore();
 
+// Authentication middleware
+const authenticateUser = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authorization token required'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    
+    // Fetch user data from Firestore
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (!userDoc.exists) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      ...userDoc.data()
+    };
+    
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid authentication token'
+    });
+  }
+};
+
+// Optional authentication middleware (for public endpoints that can benefit from user context)
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      
+      const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+      if (userDoc.exists) {
+        req.user = {
+          uid: decodedToken.uid,
+          email: decodedToken.email,
+          ...userDoc.data()
+        };
+      }
+    }
+    next();
+  } catch (error) {
+    // Continue without user context if auth fails
+    next();
+  }
+};
+
 // Routes
 
 // Health check
@@ -37,7 +100,7 @@ app.get('/health', (req, res) => {
 });
 
 // Get all animals
-app.get('/api/animals', async (req, res) => {
+app.get('/api/animals', optionalAuth, async (req, res) => {
   try {
     const animalsSnapshot = await db.collection('animals').get();
     const animals = [];
@@ -184,15 +247,27 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
-// Add new animal
-app.post('/api/animals', async (req, res) => {
+// Add new animal (requires authentication)
+app.post('/api/animals', authenticateUser, async (req, res) => {
   try {
-    const { name, location, count, habitat, status, description } = req.body;
+    const { 
+      name, location, count, habitat, status, description,
+      addedBy, addedByUserId, addedByRole, addedAt 
+    } = req.body;
     
     if (!name || !location || count === undefined) {
       return res.status(400).json({
         success: false,
         error: 'Name, location, and count are required'
+      });
+    }
+
+    // Check if user has permission to add animals
+    const userRole = req.user.role;
+    if (!userRole || (userRole !== 'driver' && userRole !== 'researcher' && userRole !== 'visitor')) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to add animal data'
       });
     }
 
@@ -203,6 +278,18 @@ app.post('/api/animals', async (req, res) => {
       habitat: habitat || '',
       status: status || 'Not Evaluated',
       description: description || '',
+      // Enhanced user tracking (from frontend)
+      addedBy: addedBy || req.user.displayName || req.user.email,
+      addedByUserId: addedByUserId || req.user.uid,
+      addedByRole: addedByRole || req.user.role,
+      addedAt: addedAt || new Date().toISOString(),
+      // Legacy format (for backward compatibility)
+      createdBy: {
+        uid: req.user.uid,
+        displayName: req.user.displayName,
+        email: req.user.email,
+        role: req.user.role,
+      },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -228,7 +315,7 @@ app.post('/api/animals', async (req, res) => {
 // --- Poaching Incidents Endpoints ---
 
 // Get all poaching incidents
-app.get('/api/poaching', async (req, res) => {
+app.get('/api/poaching', optionalAuth, async (req, res) => {
   try {
     const snapshot = await db.collection('poaching_incidents').orderBy('date', 'desc').get();
     const incidents = [];
@@ -242,20 +329,44 @@ app.get('/api/poaching', async (req, res) => {
   }
 });
 
-// Add a new poaching incident
-app.post('/api/poaching', async (req, res) => {
+// Add a new poaching incident (requires authentication)
+app.post('/api/poaching', authenticateUser, async (req, res) => {
   try {
-    const { species, location, date, severity, description, reportedBy } = req.body;
+    const { 
+      species, location, date, severity, description,
+      reportedBy, reportedByUserId, reportedByRole, reportedAt 
+    } = req.body;
     if (!species || !location || !date || !severity) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
+
+    // Check if user has permission to report poaching incidents
+    const userRole = req.user.role;
+    if (!userRole || (userRole !== 'driver' && userRole !== 'researcher' && userRole !== 'visitor')) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to report poaching incidents'
+      });
+    }
+
     const data = {
       species,
       location,
       date,
       severity,
       description: description || '',
-      reportedBy: reportedBy || 'Unknown',
+      // Enhanced user tracking (from frontend)
+      reportedBy: reportedBy || req.user.displayName || req.user.email,
+      reportedByUserId: reportedByUserId || req.user.uid,
+      reportedByRole: reportedByRole || req.user.role,
+      reportedAt: reportedAt || new Date().toISOString(),
+      // Legacy format (for backward compatibility)
+      createdBy: {
+        uid: req.user.uid,
+        displayName: req.user.displayName,
+        email: req.user.email,
+        role: req.user.role,
+      },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };

@@ -11,8 +11,10 @@ import {
   Platform,
 } from 'react-native';
 import ApiService from '../services/ApiService';
+import { useAuth } from '../contexts/AuthContext';
 
 const AddPoachingScreen = ({ navigation }) => {
+  const { user, userData, rolePermissions } = useAuth();
   const [formData, setFormData] = useState({
     species: '',
     location: '',
@@ -22,6 +24,23 @@ const AddPoachingScreen = ({ navigation }) => {
     reportedBy: '',
   });
   const [loading, setLoading] = useState(false);
+
+  // Check if user has permission to add poaching reports
+  if (!rolePermissions?.canAddData) {
+    return (
+      <View style={styles.permissionDenied}>
+        <Text style={styles.permissionTitle}>🚫 Access Denied</Text>
+        <Text style={styles.permissionText}>
+          Your role ({userData?.role || user?.role}) doesn't have permission to report poaching incidents.
+        </Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const severityOptions = ['Low', 'Medium', 'High'];
 
@@ -53,7 +72,17 @@ const AddPoachingScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await ApiService.reportPoachingIncident(formData);
+      // Add logged-in user information to the form data
+      const poachingData = {
+        ...formData,
+        // Add logged-in user information
+        reportedBy: formData.reportedBy || userData?.displayName || userData?.email || user?.email || 'Unknown User',
+        reportedByUserId: userData?.uid || user?.uid || null,
+        reportedByRole: userData?.role || 'unknown',
+        reportedAt: new Date().toISOString(),
+      };
+
+      await ApiService.reportPoachingIncident(poachingData);
       Alert.alert(
         'Success', 
         'Poaching incident reported successfully',
@@ -90,6 +119,15 @@ const AddPoachingScreen = ({ navigation }) => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>🚨 Report Poaching Incident</Text>
           <Text style={styles.headerSubtitle}>Help us protect wildlife</Text>
+          <View style={styles.userInfoContainer}>
+            <Text style={styles.roleEmoji}>
+              {userData?.role === 'researcher' ? '🔬' : 
+               userData?.role === 'driver' ? '🚗' : '👁️'}
+            </Text>
+            <Text style={styles.userInfoText}>
+              {userData?.displayName || userData?.email || user?.email} ({userData?.role})
+            </Text>
+          </View>
         </View>
 
         <View style={styles.form}>
@@ -216,6 +254,56 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     marginTop: 5,
+  },
+  userInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 10,
+    marginHorizontal: 20,
+  },
+  userInfoText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  roleEmoji: {
+    fontSize: 18,
+  },
+  permissionDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 20,
+  },
+  permissionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#F44336',
+    marginBottom: 10,
+  },
+  permissionText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  backButton: {
+    backgroundColor: '#F44336',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  backButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   form: {
     padding: 20,

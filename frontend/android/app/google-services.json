@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "64456925284",
+    "project_id": "forest-animals-app",
+    "storage_bucket": "forest-animals-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:64456925284:android:18fbd87cfeb23dbddf7f71",
+        "android_client_info": {
+          "package_name": "com.forestapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHKay0Vyl1GTf4oewPk9Txi80NoiIPsC8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -7,17 +7,50 @@ import {
   StatusBar,
   Dimensions,
   ScrollView,
+  Alert,
 } from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
 const MainScreen = ({ navigation }) => {
+  const { user, signOut, hasPermission } = useAuth();
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await signOut();
+            if (!result.success) {
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
       
       {/* Header Section */}
       <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.userInfo}>
+            <Text style={styles.welcomeUser}>Welcome, {user?.firstName || 'User'}!</Text>
+            <Text style={styles.userRole}>Role: {user?.role || 'Unknown'}</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.appName}>🌲 Forest Guardian</Text>
         <Text style={styles.subtitle}>Wildlife Monitoring & Protection System</Text>
       </View>
@@ -32,40 +65,58 @@ const MainScreen = ({ navigation }) => {
 
           {/* Action Buttons */}
           <View style={styles.buttonsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.insertButton]}
-              onPress={() => navigation.navigate('InsertAnimals')}
-              activeOpacity={0.8}>
-              <Text style={styles.buttonIcon}>🦁</Text>
-              <Text style={styles.buttonTitle}>Insert Animals</Text>
-              <Text style={styles.buttonSubtitle}>Add new wildlife data</Text>
-            </TouchableOpacity>
+            {hasPermission('canAddAnimals') && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.insertButton]}
+                onPress={() => navigation.navigate('InsertAnimals')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>🦁</Text>
+                <Text style={styles.buttonTitle}>Insert Animals</Text>
+                <Text style={styles.buttonSubtitle}>Add new wildlife data</Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.poachingAnalyticsButton]}
-              onPress={() => navigation.navigate('PoachingAnalytics')}
-              activeOpacity={0.8}>
-              <Text style={styles.buttonIcon}>🛡️</Text>
-              <Text style={styles.buttonTitle}>Poaching Analytics</Text>
-              <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
-            </TouchableOpacity>
+            {hasPermission('canViewAnalytics') && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.poachingAnalyticsButton]}
+                onPress={() => navigation.navigate('PoachingAnalytics')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>🛡️</Text>
+                <Text style={styles.buttonTitle}>Poaching Analytics</Text>
+                <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.addPoachingButton]}
-              onPress={() => navigation.navigate('AddPoaching')}
-              activeOpacity={0.8}>
-              <Text style={styles.buttonIcon}>🚨</Text>
-              <Text style={styles.buttonTitle}>Add Poaching</Text>
-              <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
-            </TouchableOpacity>
+            {hasPermission('canAddPoaching') && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.addPoachingButton]}
+                onPress={() => navigation.navigate('AddPoaching')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>🚨</Text>
+                <Text style={styles.buttonTitle}>Add Poaching</Text>
+                <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
+              </TouchableOpacity>
+            )}
 
+            {hasPermission('canViewAnalytics') && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.animalsDataButton]}
+                onPress={() => navigation.navigate('Analyst')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>📊</Text>
+                <Text style={styles.buttonTitle}>Animals Data</Text>
+                <Text style={styles.buttonSubtitle}>View animal analytics</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Common access for all roles */}
             <TouchableOpacity
-              style={[styles.actionButton, styles.animalsDataButton]}
-              onPress={() => navigation.navigate('Analyst')}
+              style={[styles.actionButton, styles.homeButton]}
+              onPress={() => navigation.navigate('Home')}
               activeOpacity={0.8}>
-              <Text style={styles.buttonIcon}>📊</Text>
-              <Text style={styles.buttonTitle}>Animals Data</Text>
-              <Text style={styles.buttonSubtitle}>View animal analytics</Text>
+              <Text style={styles.buttonIcon}>🏠</Text>
+              <Text style={styles.buttonTitle}>View Animals</Text>
+              <Text style={styles.buttonSubtitle}>Browse wildlife database</Text>
             </TouchableOpacity>
           </View>
 
@@ -86,9 +137,41 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 40,
     paddingBottom: 40,
     backgroundColor: '#2E7D32',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  welcomeUser: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  userRole: {
+    fontSize: 14,
+    color: '#A5D6A7',
+    textTransform: 'capitalize',
+  },
+  logoutButton: {
+    backgroundColor: '#F44336',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  logoutText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   appName: {
     fontSize: 32,
@@ -154,6 +237,9 @@ const styles = StyleSheet.create({
   },
   animalsDataButton: {
     backgroundColor: '#FF9800',
+  },
+  homeButton: {
+    backgroundColor: '#9C27B0',
   },
   buttonIcon: {
     fontSize: 32,

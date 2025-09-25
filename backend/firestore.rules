@@ -1,0 +1,32 @@
+// Firestore Security Rules for Forest Animals App
+// These rules allow authenticated users to read/write data
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Animals collection - authenticated users can read, drivers+ can write
+    match /animals/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['driver', 'researcher']);
+    }
+    
+    // Poaching incidents - authenticated users can read, drivers+ can write
+    match /poaching_incidents/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['driver', 'researcher']);
+    }
+    
+    // Analytics - only researchers can access
+    match /analytics/{document=**} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'researcher';
+    }
+  }
+}
