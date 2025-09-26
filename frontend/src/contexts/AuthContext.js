@@ -42,6 +42,11 @@ export const AuthProvider = ({ children }) => {
       canAccessAnimalAnalytics: true,
       canAccessAnimalDetails: true,
       canAddData: true,
+      canViewParks: true,
+      canAddParks: true,
+      canEditParks: true,
+      canDeleteParks: true,
+      canAccessParkManagement: true,
     },
     [USER_ROLES.DRIVER]: {
       canViewAnimals: true,
@@ -59,6 +64,11 @@ export const AuthProvider = ({ children }) => {
       canAccessAnimalAnalytics: false,
       canAccessAnimalDetails: true,
       canAddData: true,
+      canViewParks: true,
+      canAddParks: false,
+      canEditParks: false,
+      canDeleteParks: false,
+      canAccessParkManagement: true,
     },
     [USER_ROLES.RESEARCHER]: {
       canViewAnimals: true,
@@ -76,6 +86,11 @@ export const AuthProvider = ({ children }) => {
       canAccessAnimalAnalytics: true,
       canAccessAnimalDetails: true,
       canAddData: true,
+      canViewParks: true,
+      canAddParks: true,
+      canEditParks: true,
+      canDeleteParks: true,
+      canAccessParkManagement: true,
     },
   };
 

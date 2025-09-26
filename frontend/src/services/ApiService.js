@@ -169,6 +169,123 @@ class ApiService {
       throw error;
     }
   }
+
+  // Park management methods
+  async fetchParks() {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/parks`, { headers });
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to fetch parks');
+      }
+    } catch (error) {
+      console.error('Error fetching parks:', error);
+      throw error;
+    }
+  }
+
+  async fetchParkById(id) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/parks/${id}`, { headers });
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to fetch park');
+      }
+    } catch (error) {
+      console.error('Error fetching park:', error);
+      throw error;
+    }
+  }
+
+  async addPark(parkData) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/parks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(parkData),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to add park');
+      }
+    } catch (error) {
+      console.error('Error adding park:', error);
+      throw error;
+    }
+  }
+
+  async updatePark(id, parkData) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/parks/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(parkData),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to update park');
+      }
+    } catch (error) {
+      console.error('Error updating park:', error);
+      throw error;
+    }
+  }
+
+  async deletePark(id) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/parks/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to delete park');
+      }
+    } catch (error) {
+      console.error('Error deleting park:', error);
+      throw error;
+    }
+  }
+
+  async fetchParksByCategory(category) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/parks/category/${encodeURIComponent(category)}`, { headers });
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.data;
+      } else {
+        throw new Error(data.error || 'Failed to fetch parks by category');
+      }
+    } catch (error) {
+      console.error('Error fetching parks by category:', error);
+      throw error;
+    }
+  }
 }
 
 export default new ApiService();

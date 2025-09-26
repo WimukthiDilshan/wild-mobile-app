@@ -17,6 +17,7 @@ import AnimalAnalyticsScreen from './src/screens/AnimalAnalyticsScreen';
 import InsertAnimalsScreen from './src/screens/InsertAnimalsScreen';
 import PoachingAnalyticsScreen from './src/screens/PoachingAnalyticsScreen';
 import AddPoachingScreen from './src/screens/AddPoachingScreen';
+import ParkManagementScreen from './src/screens/ParkManagementScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -123,6 +124,13 @@ const AppNavigator = () => {
           name="AddPoaching" 
           component={AddPoachingScreen} 
           options={{ title: '🚨 Report Poaching' }}
+        />
+      )}
+      {hasPermission('canAccessParkManagement') && (
+        <Stack.Screen 
+          name="ParkManagement" 
+          component={ParkManagementScreen} 
+          options={{ headerShown: false }}
         />
       )}
     </Stack.Navigator>

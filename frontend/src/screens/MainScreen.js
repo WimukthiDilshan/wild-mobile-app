@@ -109,15 +109,17 @@ const MainScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
 
-            {/* Common access for all roles */}
-            <TouchableOpacity
-              style={[styles.actionButton, styles.homeButton]}
-              onPress={() => navigation.navigate('Home')}
-              activeOpacity={0.8}>
-              <Text style={styles.buttonIcon}>🏠</Text>
-              <Text style={styles.buttonTitle}>View Animals</Text>
-              <Text style={styles.buttonSubtitle}>Browse wildlife database</Text>
-            </TouchableOpacity>
+            {/* Park Management - Available for users with park permissions */}
+            {hasPermission('canAccessParkManagement') && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.homeButton]}
+                onPress={() => navigation.navigate('ParkManagement')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>�️</Text>
+                <Text style={styles.buttonTitle}>Add Park Details</Text>
+                <Text style={styles.buttonSubtitle}>Manage wildlife parks</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Footer */}

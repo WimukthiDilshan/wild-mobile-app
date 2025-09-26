@@ -378,6 +378,188 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
   }
 });
 
+// ===== PARK MANAGEMENT ENDPOINTS =====
+
+// Get all parks
+app.get('/api/parks', optionalAuth, async (req, res) => {
+  try {
+    const snapshot = await db.collection('parks').orderBy('name').get();
+    const parks = [];
+    snapshot.forEach(doc => {
+      parks.push({ id: doc.id, ...doc.data() });
+    });
+    res.json({ success: true, data: parks });
+  } catch (error) {
+    console.error('Error fetching parks:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch parks' });
+  }
+});
+
+// Get park by ID
+app.get('/api/parks/:id', optionalAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('parks').doc(id).get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, error: 'Park not found' });
+    }
+    
+    res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+  } catch (error) {
+    console.error('Error fetching park:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch park' });
+  }
+});
+
+// Get parks by category
+app.get('/api/parks/category/:category', optionalAuth, async (req, res) => {
+  try {
+    const { category } = req.params;
+    const snapshot = await db.collection('parks')
+      .where('category', '==', decodeURIComponent(category))
+      .orderBy('name')
+      .get();
+    
+    const parks = [];
+    snapshot.forEach(doc => {
+      parks.push({ id: doc.id, ...doc.data() });
+    });
+    
+    res.json({ success: true, data: parks });
+  } catch (error) {
+    console.error('Error fetching parks by category:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch parks by category' });
+  }
+});
+
+// Add new park
+app.post('/api/parks', authenticateUser, async (req, res) => {
+  try {
+    const {
+      name,
+      location,
+      area,
+      established,
+      description,
+      coordinates,
+      facilities,
+      category,
+      status
+    } = req.body;
+
+    // Validation
+    if (!name || !location) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and location are required fields'
+      });
+    }
+
+    const parkData = {
+      name: name.trim(),
+      location: location.trim(),
+      area: area ? parseFloat(area) : 0,
+      established: established || '',
+      description: description || '',
+      coordinates: coordinates || { latitude: 0, longitude: 0 },
+      facilities: facilities || '',
+      category: category || 'National Park',
+      status: status || 'Active',
+      createdBy: {
+        uid: req.user.uid,
+        displayName: req.user.displayName,
+        email: req.user.email,
+        role: req.user.role,
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    const docRef = await db.collection('parks').add(parkData);
+    res.status(201).json({ success: true, data: { id: docRef.id, ...parkData } });
+  } catch (error) {
+    console.error('Error adding park:', error);
+    res.status(500).json({ success: false, error: 'Failed to add park' });
+  }
+});
+
+// Update park
+app.put('/api/parks/:id', authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      location,
+      area,
+      established,
+      description,
+      coordinates,
+      facilities,
+      category,
+      status
+    } = req.body;
+
+    // Check if park exists
+    const parkDoc = await db.collection('parks').doc(id).get();
+    if (!parkDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Park not found' });
+    }
+
+    // Validation
+    if (!name || !location) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and location are required fields'
+      });
+    }
+
+    const updateData = {
+      name: name.trim(),
+      location: location.trim(),
+      area: area ? parseFloat(area) : 0,
+      established: established || '',
+      description: description || '',
+      coordinates: coordinates || { latitude: 0, longitude: 0 },
+      facilities: facilities || '',
+      category: category || 'National Park',
+      status: status || 'Active',
+      updatedBy: {
+        uid: req.user.uid,
+        displayName: req.user.displayName,
+        email: req.user.email,
+        role: req.user.role,
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection('parks').doc(id).update(updateData);
+    res.json({ success: true, data: { id, ...updateData } });
+  } catch (error) {
+    console.error('Error updating park:', error);
+    res.status(500).json({ success: false, error: 'Failed to update park' });
+  }
+});
+
+// Delete park
+app.delete('/api/parks/:id', authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if park exists
+    const parkDoc = await db.collection('parks').doc(id).get();
+    if (!parkDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Park not found' });
+    }
+
+    await db.collection('parks').doc(id).delete();
+    res.json({ success: true, data: { message: 'Park deleted successfully' } });
+  } catch (error) {
+    console.error('Error deleting park:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete park' });
+  }
+});
+
 // Poaching analytics endpoint
 app.get('/api/poaching/analytics', async (req, res) => {
   try {

@@ -10,8 +10,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import ApiService from '../services/ApiService';
+import { useAuth } from '../contexts/AuthContext';
 
 const HomeScreen = ({ navigation }) => {
+  const { hasPermission } = useAuth();
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,12 +81,46 @@ const HomeScreen = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Analyst Button */}
-        <TouchableOpacity
-          style={styles.analystButton}
-          onPress={() => navigation.navigate('Analyst')}>
-          <Text style={styles.analystButtonText}>📊 View Analytics Dashboard</Text>
-        </TouchableOpacity>
+        {/* Action Buttons Row */}
+        <View style={styles.actionButtonsContainer}>
+          {hasPermission('canViewAnalytics') && (
+            <TouchableOpacity
+              style={styles.analystButtonStyle}
+              onPress={() => navigation.navigate('Analyst')}>
+              <Text style={styles.buttonEmoji}>📊</Text>
+              <Text style={styles.analystButtonText}>Analytics Dashboard</Text>
+            </TouchableOpacity>
+          )}
+
+          {hasPermission('canAccessParkManagement') && (
+            <TouchableOpacity
+              style={styles.parkButtonStyle}
+              onPress={() => {
+                console.log('Add Park button pressed');
+                navigation.navigate('ParkManagement');
+              }}>
+              <Text style={styles.buttonEmoji}>🏞️</Text>
+              <Text style={styles.parkButtonText}>Add Park</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Quick Access Card - Alternative Park Button */}
+        <View style={styles.quickAccessContainer}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <TouchableOpacity
+            style={styles.quickAccessCard}
+            onPress={() => navigation.navigate('ParkManagement')}>
+            <View style={styles.quickAccessIcon}>
+              <Text style={styles.quickAccessEmoji}>🏞️</Text>
+            </View>
+            <View style={styles.quickAccessContent}>
+              <Text style={styles.quickAccessTitle}>Park Management</Text>
+              <Text style={styles.quickAccessSubtitle}>Add, edit, and manage wildlife parks</Text>
+            </View>
+            <Text style={styles.quickAccessArrow}>→</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Animals List */}
         <View style={styles.animalsContainer}>
@@ -179,22 +215,104 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 5,
   },
-  analystButton: {
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  analystButtonStyle: {
     backgroundColor: '#2196F3',
-    margin: 20,
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    alignItems: 'center',
+    minHeight: 80,
+  },
+  parkButtonStyle: {
+    backgroundColor: '#4CAF50',
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    alignItems: 'center',
+    minHeight: 80,
+  },
+  buttonEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  analystButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  parkButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  quickAccessContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  quickAccessCard: {
+    backgroundColor: 'white',
     padding: 16,
     borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
   },
-  analystButtonText: {
-    color: 'white',
+  quickAccessIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E8F5E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  quickAccessEmoji: {
+    fontSize: 24,
+  },
+  quickAccessContent: {
+    flex: 1,
+  },
+  quickAccessTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    textAlign: 'center',
+    color: '#333',
+    marginBottom: 4,
+  },
+  quickAccessSubtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
+  quickAccessArrow: {
+    fontSize: 20,
+    color: '#4CAF50',
+    fontWeight: 'bold',
   },
   animalsContainer: {
     paddingHorizontal: 20,
