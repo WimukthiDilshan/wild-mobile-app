@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import ApiService from '../services/ApiService';
 import { useAuth } from '../contexts/AuthContext';
+import LocationService from '../services/LocationService';
+import WildlifeMapPicker from '../components/WildlifeMapPicker';
 
 const InsertAnimalsScreen = ({ navigation }) => {
   const { userData, getRoleDisplayName, getRoleEmoji } = useAuth();
@@ -31,6 +33,9 @@ const InsertAnimalsScreen = ({ navigation }) => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showSpeciesModal, setShowSpeciesModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [locationData, setLocationData] = useState(null);
+  const [isGettingGPS, setIsGettingGPS] = useState(false);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(300)).current;
@@ -99,6 +104,45 @@ const InsertAnimalsScreen = ({ navigation }) => {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleGetGPSLocation = async () => {
+    setIsGettingGPS(true);
+    try {
+      const location = await LocationService.getCurrentLocation();
+      const locationString = `${location.description} (${location.formattedCoords})`;
+      
+      setLocationData({
+        ...location,
+        displayName: location.description,
+        source: 'GPS'
+      });
+      
+      handleInputChange('location', locationString);
+      
+      Alert.alert(
+        '📍 GPS Location Retrieved!',
+        `Location: ${location.description}\nCoordinates: ${location.formattedCoords}\nAccuracy: ±${location.accuracy?.toFixed(0)}m`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('GPS Error', error.message);
+    } finally {
+      setIsGettingGPS(false);
+    }
+  };
+
+  const handleMapLocationSelect = (selectedLocation) => {
+    const locationString = `${selectedLocation.name} (${selectedLocation.formattedCoords || `${selectedLocation.latitude?.toFixed(6)}, ${selectedLocation.longitude?.toFixed(6)}`})`;
+    
+    setLocationData({
+      ...selectedLocation,
+      displayName: selectedLocation.name,
+      source: selectedLocation.source || 'Map'
+    });
+    
+    handleInputChange('location', locationString);
+    setShowMapPicker(false);
   };
 
   const validateForm = () => {
@@ -200,17 +244,72 @@ const InsertAnimalsScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Location Selection */}
+            {/* Location Selection - Enhanced */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>📍 Location *</Text>
+              
+              {/* Location Display */}
               <TouchableOpacity
                 style={[styles.input, styles.dropdownInput]}
                 onPress={() => setShowLocationModal(true)}>
                 <Text style={formData.location ? styles.inputText : styles.placeholderText}>
-                  {formData.location || 'Select or enter location'}
+                  {formData.location || 'Select or choose location method'}
                 </Text>
                 <Text style={styles.dropdownIcon}>▼</Text>
               </TouchableOpacity>
+
+              {/* Location Methods */}
+              <View style={styles.locationMethodsContainer}>
+                <TouchableOpacity
+                  style={[styles.locationMethodButton, styles.gpsButton]}
+                  onPress={handleGetGPSLocation}
+                  disabled={isGettingGPS}
+                >
+                  {isGettingGPS ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.locationMethodEmoji}>📡</Text>
+                      <Text style={styles.locationMethodText}>GPS Location</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.locationMethodButton, styles.mapButton]}
+                  onPress={() => setShowMapPicker(true)}
+                >
+                  <Text style={styles.locationMethodEmoji}>🗺️</Text>
+                  <Text style={styles.locationMethodText}>Map Picker</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Location Data Display */}
+              {locationData && (
+                <View style={styles.locationDataContainer}>
+                  <View style={styles.locationDataHeader}>
+                    <Text style={styles.locationDataTitle}>
+                      {locationData.source === 'GPS' ? '📡' : '🗺️'} {locationData.displayName}
+                    </Text>
+                    <Text style={styles.locationDataSource}>
+                      via {locationData.source}
+                    </Text>
+                  </View>
+                  <Text style={styles.locationDataCoords}>
+                    📍 {locationData.formattedCoords || `${locationData.latitude?.toFixed(6)}, ${locationData.longitude?.toFixed(6)}`}
+                  </Text>
+                  {locationData.accuracy && (
+                    <Text style={styles.locationDataAccuracy}>
+                      🎯 Accuracy: ±{locationData.accuracy?.toFixed(0)}m
+                    </Text>
+                  )}
+                  {locationData.timestamp && (
+                    <Text style={styles.locationDataTime}>
+                      🕒 {new Date(locationData.timestamp).toLocaleString()}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
 
             {/* Count Input */}
@@ -433,6 +532,14 @@ const InsertAnimalsScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Wildlife Map Picker */}
+      <WildlifeMapPicker
+        visible={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onLocationSelect={handleMapLocationSelect}
+        initialLocation={locationData}
+      />
     </View>
   );
 };
@@ -642,6 +749,85 @@ const styles = StyleSheet.create({
   },
   flex1: {
     flex: 1,
+  },
+  // Enhanced Location Styles
+  locationMethodsContainer: {
+    flexDirection: 'row',
+    marginTop: 10,
+    gap: 10,
+  },
+  locationMethodButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  gpsButton: {
+    backgroundColor: '#2196F3',
+  },
+  mapButton: {
+    backgroundColor: '#4CAF50',
+  },
+  locationMethodEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  locationMethodText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  locationDataContainer: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  locationDataHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  locationDataTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2E7D32',
+    flex: 1,
+  },
+  locationDataSource: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    fontWeight: '500',
+  },
+  locationDataCoords: {
+    fontSize: 13,
+    color: '#555',
+    fontFamily: 'monospace',
+    marginBottom: 4,
+  },
+  locationDataAccuracy: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  locationDataTime: {
+    fontSize: 11,
+    color: '#888',
   },
 });
 
