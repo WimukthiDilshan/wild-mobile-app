@@ -1,1 +1,0 @@
-sdk.dir=C:\\Users\\njaya\\AppData\\Local\\Android\\Sdk
