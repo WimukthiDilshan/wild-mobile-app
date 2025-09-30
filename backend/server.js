@@ -3,6 +3,8 @@ const admin = require('firebase-admin');
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
+const { PythonShell } = require('python-shell'); // Or Flask API approach
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -608,6 +610,40 @@ app.get('/api/poaching/analytics', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to fetch poaching analytics' });
   }
 });
+
+
+app.post('/api/recommend', (req, res) => {
+  const input = JSON.stringify(req.body);
+
+  const py = spawn('python', ['python/predict.py', input]);
+
+  let data = '';
+  let error = '';
+
+  py.stdout.on('data', (chunk) => {
+    data += chunk.toString();
+  });
+
+  py.stderr.on('data', (chunk) => {
+    error += chunk.toString();
+  });
+
+  py.on('close', (code) => {
+    if (error) {
+      return res.status(500).json({ success: false, error });
+    }
+    try {
+      // Wrap Python output in expected format
+      res.json({
+        success: true,
+        data: { topParks: JSON.parse(data) }
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: 'Invalid JSON from Python', raw: data });
+    }
+  });
+});
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -120,6 +120,24 @@ const MainScreen = ({ navigation }) => {
                 <Text style={styles.buttonSubtitle}>Manage wildlife parks</Text>
               </TouchableOpacity>
             )}
+            {hasPermission('canGetPreferences') && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.insertButton]}
+                onPress={() => navigation.navigate('PreferenceManagement')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>🦁</Text>
+                <Text style={styles.buttonTitle}>Get PReferences </Text>
+                <Text style={styles.buttonSubtitle}>Add new wildlife data</Text>
+              </TouchableOpacity>
+            )}
+
+
+
+
+
+
+
+
           </View>
 
           {/* Footer */}

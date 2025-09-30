@@ -10,16 +10,22 @@
     "check": "node scripts/checkSetup.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "firebase-admin": "^11.11.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "helmet": "^7.0.0"
+    "express": "^4.18.2",
+    "firebase-admin": "^11.11.0",
+    "helmet": "^7.0.0",
+    "python-shell": "^5.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": ["forest", "animals", "firebase", "api"],
+  "keywords": [
+    "forest",
+    "animals",
+    "firebase",
+    "api"
+  ],
   "author": "Forest Team",
   "license": "MIT"
 }

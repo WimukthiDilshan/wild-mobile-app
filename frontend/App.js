@@ -18,6 +18,8 @@ import InsertAnimalsScreen from './src/screens/InsertAnimalsScreen';
 import PoachingAnalyticsScreen from './src/screens/PoachingAnalyticsScreen';
 import AddPoachingScreen from './src/screens/AddPoachingScreen';
 import ParkManagementScreen from './src/screens/ParkManagementScreen';
+import UserPreferences from './src/screens/UserPreferencesScreen';
+import RecommendationsScreen from './src/screens/RecommendationsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -133,6 +135,21 @@ const AppNavigator = () => {
           options={{ headerShown: false }}
         />
       )}
+      {hasPermission('canGetPreferences') && (
+        <Stack.Screen 
+          name="PreferenceManagement" 
+          component={UserPreferences} 
+          options={{ headerShown: false }}
+        />
+      )}
+      {hasPermission('canGetPreferences') && (
+        <Stack.Screen 
+          name="Recommendations" 
+          component={RecommendationsScreen} 
+          options={{ headerShown: false }}
+        />
+      )}
+
     </Stack.Navigator>
   );
 };

@@ -1,13 +1,14 @@
 {
   "project_info": {
-    "project_number": "64456925284",
-    "project_id": "forest-animals-app",
-    "storage_bucket": "forest-animals-app.firebasestorage.app"
+    "project_number": "629804037803",
+    "firebase_url": "https://wildlife-aff9c-default-rtdb.firebaseio.com",
+    "project_id": "wildlife-aff9c",
+    "storage_bucket": "wildlife-aff9c.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:64456925284:android:18fbd87cfeb23dbddf7f71",
+        "mobilesdk_app_id": "1:629804037803:android:bea4bf4be03b7b22a4e9ee",
         "android_client_info": {
           "package_name": "com.forestapp"
         }
@@ -15,7 +16,26 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBHKay0Vyl1GTf4oewPk9Txi80NoiIPsC8"
+          "current_key": "AIzaSyDZRttCKh_3BCMNiD-FpS7ANFuRJYe_jLA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:629804037803:android:440177ee2e764f13a4e9ee",
+        "android_client_info": {
+          "package_name": "com.wildlife"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZRttCKh_3BCMNiD-FpS7ANFuRJYe_jLA"
         }
       ],
       "services": {

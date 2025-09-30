@@ -286,6 +286,28 @@ class ApiService {
       throw error;
     }
   }
+  async getRecommendedParks(featureVector) {
+  try {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/recommend`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(featureVector),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.data.topParks; // [{parkName, score}, ...]
+    } else {
+      throw new Error(data.error || 'Failed to get recommendations');
+    }
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    throw error;
+  }
+}
+
+
 }
 
 export default new ApiService();
