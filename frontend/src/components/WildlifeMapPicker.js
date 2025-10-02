@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   TextInput,
   Animated,
   Dimensions,
+  Platform,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import LocationService from '../services/LocationService';
 
 const { width, height } = Dimensions.get('window');
@@ -23,12 +24,34 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
   const [showNameInput, setShowNameInput] = useState(false);
   const [gpsLocation, setGpsLocation] = useState(null);
   const [isGettingGPS, setIsGettingGPS] = useState(false);
+  const [mapError, setMapError] = useState(null);
+  const [mapType, setMapType] = useState('standard');
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 6.9022, // Malabe, Sri Lanka latitude
+    longitude: 79.9633, // Malabe, Sri Lanka longitude
+    latitudeDelta: 0.05, // Zoomed in view of Malabe area
+    longitudeDelta: 0.05,
+  });
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const webViewRef = useRef(null);
+  const mapRef = useRef(null);
 
-  React.useEffect(() => {
+  // Wildlife hotspots data
+  const wildlifeHotspots = [
+    { id: 1, name: 'Amazon Rainforest', latitude: -3.4653, longitude: -62.2159, emoji: '🌳', type: 'Rainforest' },
+    { id: 2, name: 'Serengeti National Park', latitude: -2.3333, longitude: 34.8333, emoji: '🦁', type: 'Savanna' },
+    { id: 3, name: 'Borneo Rainforest', latitude: 0.9619, longitude: 114.5548, emoji: '🐒', type: 'Tropical Forest' },
+    { id: 4, name: 'Yellowstone National Park', latitude: 44.4280, longitude: -110.5885, emoji: '🐻', type: 'Wilderness' },
+    { id: 5, name: 'Madagascar', latitude: -18.7669, longitude: 46.8691, emoji: '🦎', type: 'Island Ecosystem' },
+    { id: 6, name: 'Great Barrier Reef', latitude: -18.2871, longitude: 147.6992, emoji: '🐠', type: 'Marine' },
+    { id: 7, name: 'Congo Basin', latitude: -0.2280, longitude: 15.8277, emoji: '🦍', type: 'Tropical Forest' },
+    { id: 8, name: 'Pantanal Wetlands', latitude: -16.2500, longitude: -56.6667, emoji: '🐆', type: 'Wetlands' },
+    { id: 9, name: 'Galapagos Islands', latitude: -0.9538, longitude: -90.9656, emoji: '🐢', type: 'Volcanic Islands' },
+    { id: 10, name: 'Arctic Tundra', latitude: 71.0275, longitude: -156.7691, emoji: '🐻‍❄️', type: 'Tundra' }
+  ];
+
+  useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -43,6 +66,15 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
           useNativeDriver: true,
         }),
       ]).start();
+      
+      // Set initial map region to Malabe, Sri Lanka
+      setMapRegion({
+        latitude: 6.9022, // Malabe, Sri Lanka latitude
+        longitude: 79.9633, // Malabe, Sri Lanka longitude
+        latitudeDelta: 0.05, // Zoomed in view of Malabe area
+        longitudeDelta: 0.05,
+      });
+      setIsLoading(false);
     }
   }, [visible]);
 
@@ -72,9 +104,9 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
     try {
       console.log('Starting GPS location request...');
       const location = await LocationService.getCurrentLocation({
-        timeout: 20000, // Increase timeout to 20 seconds
+        timeout: 20000,
         enableHighAccuracy: true,
-        maximumAge: 5000 // Allow slightly older location data
+        maximumAge: 5000
       });
       
       console.log('GPS location received:', location);
@@ -88,18 +120,13 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
         timestamp: location.timestamp,
       });
       
-      // Update map to GPS location - add small delay to ensure WebView is ready
-      setTimeout(() => {
-        if (webViewRef.current) {
-          console.log('Sending location update to map:', location);
-          webViewRef.current.postMessage(JSON.stringify({
-            type: 'updateLocation',
-            data: location
-          }));
-        } else {
-          console.warn('WebView ref not available for location update');
-        }
-      }, 500);
+      // Update map region to GPS location
+      setMapRegion({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
       
       Alert.alert(
         '📍 GPS Location Found!',
@@ -121,18 +148,55 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
     }
   };
 
-  const handleLocationSelect = (locationData) => {
-    if (locationData.customName && locationData.customName.trim()) {
-      onLocationSelect({
-        ...locationData,
-        name: locationData.customName.trim(),
-        source: locationData.source || 'Map'
-      });
-      handleClose();
-    } else {
-      setSelectedLocation(locationData);
-      setShowNameInput(true);
-    }
+  const handleMapPress = (event) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    const locationData = {
+      latitude,
+      longitude,
+      name: 'Selected Location',
+      formattedCoords: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      source: 'Map'
+    };
+    setSelectedLocation(locationData);
+    setShowNameInput(true);
+  };
+
+  const handleHotspotPress = (hotspot) => {
+    const locationData = {
+      latitude: hotspot.latitude,
+      longitude: hotspot.longitude,
+      name: hotspot.name,
+      formattedCoords: `${hotspot.latitude.toFixed(6)}, ${hotspot.longitude.toFixed(6)}`,
+      source: 'Hotspot'
+    };
+    setSelectedLocation(locationData);
+    setCustomLocationName(hotspot.name); // Pre-fill with hotspot name
+    setShowNameInput(true);
+  };
+
+  const handleZoomIn = () => {
+    setMapRegion(prevRegion => ({
+      ...prevRegion,
+      latitudeDelta: prevRegion.latitudeDelta * 0.5,
+      longitudeDelta: prevRegion.longitudeDelta * 0.5,
+    }));
+  };
+
+  const handleZoomOut = () => {
+    setMapRegion(prevRegion => ({
+      ...prevRegion,
+      latitudeDelta: Math.min(prevRegion.latitudeDelta * 2, 180),
+      longitudeDelta: Math.min(prevRegion.longitudeDelta * 2, 360),
+    }));
+  };
+
+  const handleGoToMalabe = () => {
+    setMapRegion({
+      latitude: 6.9022, // Malabe, Sri Lanka latitude
+      longitude: 79.9633, // Malabe, Sri Lanka longitude
+      latitudeDelta: 0.05, // Zoomed in view of Malabe area
+      longitudeDelta: 0.05,
+    });
   };
 
   const handleSaveLocation = () => {
@@ -152,187 +216,6 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
     handleClose();
   };
 
-  const leafletHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        body { margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; }
-        .custom-div-icon {
-            background: none;
-            border: none;
-        }
-        .wildlife-marker {
-            font-size: 20px;
-            text-align: center;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
-        }
-        .leaflet-popup-content {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-            text-align: center;
-        }
-        .popup-title {
-            font-weight: bold;
-            color: #2E7D32;
-            margin-bottom: 5px;
-        }
-        .popup-coords {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <script>
-        // Initialize map
-        const map = L.map('map').setView([0, 0], 2);
-        
-        // Add satellite tile layer
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri, Maxar, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
-            maxZoom: 18,
-            minZoom: 2
-        }).addTo(map);
-
-        // Add OpenStreetMap overlay with transparency
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            opacity: 0.3,
-            maxZoom: 18
-        }).addTo(map);
-
-        let selectedMarker = null;
-
-        // Wildlife hotspots
-        const wildlifeHotspots = [
-            { name: 'Amazon Rainforest', lat: -3.4653, lng: -62.2159, emoji: '🌳', type: 'Rainforest' },
-            { name: 'Serengeti National Park', lat: -2.3333, lng: 34.8333, emoji: '🦁', type: 'Savanna' },
-            { name: 'Borneo Rainforest', lat: 0.9619, lng: 114.5548, emoji: '🐒', type: 'Tropical Forest' },
-            { name: 'Yellowstone National Park', lat: 44.4280, lng: -110.5885, emoji: '🐻', type: 'Wilderness' },
-            { name: 'Madagascar', lat: -18.7669, lng: 46.8691, emoji: '🦎', type: 'Island Ecosystem' },
-            { name: 'Great Barrier Reef', lat: -18.2871, lng: 147.6992, emoji: '🐠', type: 'Marine' },
-            { name: 'Congo Basin', lat: -0.2280, lng: 15.8277, emoji: '🦍', type: 'Tropical Forest' },
-            { name: 'Pantanal Wetlands', lat: -16.2500, lng: -56.6667, emoji: '🐆', type: 'Wetlands' },
-            { name: 'Galapagos Islands', lat: -0.9538, lng: -90.9656, emoji: '🐢', type: 'Volcanic Islands' },
-            { name: 'Arctic Tundra', lat: 71.0275, lng: -156.7691, emoji: '🐻‍❄️', type: 'Tundra' }
-        ];
-
-        // Add wildlife hotspot markers
-        wildlifeHotspots.forEach(spot => {
-            const marker = L.marker([spot.lat, spot.lng], {
-                icon: L.divIcon({
-                    html: '<div class="wildlife-marker">' + spot.emoji + '</div>',
-                    className: 'custom-div-icon',
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
-                })
-            }).addTo(map);
-
-            marker.bindPopup(
-                '<div class="popup-title">' + spot.name + '</div>' +
-                '<div>' + spot.type + '</div>' +
-                '<div class="popup-coords">' + spot.lat.toFixed(4) + ', ' + spot.lng.toFixed(4) + '</div>'
-            );
-
-            marker.on('click', function() {
-                selectLocation(spot.lat, spot.lng, spot.name);
-            });
-        });
-
-        // Handle map clicks
-        map.on('click', function(e) {
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-            selectLocation(lat, lng, null);
-        });
-
-        function selectLocation(lat, lng, name) {
-            // Remove previous selected marker
-            if (selectedMarker) {
-                map.removeLayer(selectedMarker);
-            }
-
-            // Add new selected marker
-            selectedMarker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    html: '<div class="wildlife-marker">📍</div>',
-                    className: 'custom-div-icon',
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
-                })
-            }).addTo(map);
-
-            const locationName = name || 'Selected Location';
-            selectedMarker.bindPopup(
-                '<div class="popup-title">' + locationName + '</div>' +
-                '<div class="popup-coords">' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '</div>'
-            ).openPopup();
-
-            // Send data to React Native
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'locationSelected',
-                data: {
-                    latitude: lat,
-                    longitude: lng,
-                    name: locationName,
-                    formattedCoords: lat.toFixed(6) + ', ' + lng.toFixed(6)
-                }
-            }));
-        }
-
-        // Listen for messages from React Native
-        window.addEventListener('message', function(event) {
-            try {
-                console.log('Received message in WebView:', event.data);
-                const message = JSON.parse(event.data);
-                if (message.type === 'updateLocation') {
-                    const { latitude, longitude } = message.data;
-                    console.log('Updating map to location:', latitude, longitude);
-                    map.setView([latitude, longitude], 15);
-                    selectLocation(latitude, longitude, 'GPS Location');
-                }
-            } catch (e) {
-                console.error('Error parsing message:', e);
-            }
-        });
-
-        // Set initial view to show global wildlife hotspots
-        setTimeout(() => {
-            const group = new L.featureGroup(wildlifeHotspots.map(spot => 
-                L.marker([spot.lat, spot.lng])
-            ));
-            map.fitBounds(group.getBounds().pad(0.1));
-        }, 1000);
-
-        // Notify React Native that map is ready
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'mapReady'
-        }));
-    </script>
-</body>
-</html>
-  `;
-
-  const handleWebViewMessage = (event) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'locationSelected') {
-        handleLocationSelect(data.data);
-      } else if (data.type === 'mapReady') {
-        // Map is ready - you can optionally center on user location here
-        // For now, we'll let users manually click the GPS button
-      }
-    } catch (error) {
-      console.error('Error parsing WebView message:', error);
-    }
-  };
 
   if (!visible) return null;
 
@@ -390,33 +273,163 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
                 </Text>
               </View>
             )}
+
+            {/* Map Type Selector */}
+            <View style={styles.mapTypeContainer}>
+              <Text style={styles.mapTypeLabel}>Map View:</Text>
+              <View style={styles.mapTypeButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.mapTypeButton,
+                    mapType === 'standard' && styles.mapTypeButtonActive
+                  ]}
+                  onPress={() => setMapType('standard')}
+                >
+                  <Text style={[
+                    styles.mapTypeButtonText,
+                    mapType === 'standard' && styles.mapTypeButtonTextActive
+                  ]}>🗺️ Standard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.mapTypeButton,
+                    mapType === 'satellite' && styles.mapTypeButtonActive
+                  ]}
+                  onPress={() => setMapType('satellite')}
+                >
+                  <Text style={[
+                    styles.mapTypeButtonText,
+                    mapType === 'satellite' && styles.mapTypeButtonTextActive
+                  ]}>🛰️ Satellite</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.mapTypeButton,
+                    mapType === 'hybrid' && styles.mapTypeButtonActive
+                  ]}
+                  onPress={() => setMapType('hybrid')}
+                >
+                  <Text style={[
+                    styles.mapTypeButtonText,
+                    mapType === 'hybrid' && styles.mapTypeButtonTextActive
+                  ]}>🌍 Hybrid</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Go to Malabe Button */}
+            {/* <View style={styles.locationContainer}>
+              <TouchableOpacity
+                style={styles.locationButton}
+                onPress={handleGoToMalabe}
+              >
+                <Text style={styles.locationButtonEmoji}>🇱🇰</Text>
+                <Text style={styles.locationButtonText}>Go to Malabe, Sri Lanka</Text>
+              </TouchableOpacity>
+            </View> */}
           </View>
 
-          {/* Map Container */}
+          {/* Google Maps Container */}
           <View style={styles.mapContainer}>
-            {isLoading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4CAF50" />
-                <Text style={styles.loadingText}>Loading Wildlife Map...</Text>
+            {mapError ? (
+              <View style={styles.mapErrorContainer}>
+                <Text style={styles.mapErrorIcon}>🗺️</Text>
+                <Text style={styles.mapErrorTitle}>Map Loading Error</Text>
+                <Text style={styles.mapErrorText}>
+                  Google Maps failed to load. Please check your internet connection and try again.
+                </Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => {
+                    setMapError(null);
+                    setIsLoading(true);
+                  }}
+                >
+                  <Text style={styles.retryButtonText}>🔄 Retry</Text>
+                </TouchableOpacity>
               </View>
+            ) : (
+              <MapView
+                ref={mapRef}
+                provider={PROVIDER_GOOGLE}
+                style={styles.map}
+                region={mapRegion}
+                onPress={handleMapPress}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass={true}
+                showsScale={true}
+                mapType={mapType}
+                loadingEnabled={true}
+                loadingIndicatorColor="#4CAF50"
+                loadingBackgroundColor="#ffffff"
+                onMapReady={() => {
+                  console.log('Google Maps loaded successfully');
+                  setIsLoading(false);
+                }}
+                onError={(error) => {
+                  console.error('Google Maps error:', error);
+                  setMapError(error);
+                  setIsLoading(false);
+                }}
+              >
+              {/* Wildlife Hotspot Markers */}
+              {wildlifeHotspots.map((hotspot) => (
+                <Marker
+                  key={hotspot.id}
+                  coordinate={{
+                    latitude: hotspot.latitude,
+                    longitude: hotspot.longitude,
+                  }}
+                  title={hotspot.name}
+                  description={hotspot.type}
+                  onPress={() => handleHotspotPress(hotspot)}
+                >
+                  <View style={styles.hotspotMarker}>
+                    <Text style={styles.hotspotEmoji}>{hotspot.emoji}</Text>
+                  </View>
+                </Marker>
+              ))}
+
+              {/* Selected Location Marker */}
+              {selectedLocation && (
+                <Marker
+                  coordinate={{
+                    latitude: selectedLocation.latitude,
+                    longitude: selectedLocation.longitude,
+                  }}
+                  title={selectedLocation.name}
+                  description={selectedLocation.formattedCoords}
+                >
+                  <View style={styles.selectedMarker}>
+                    <Text style={styles.selectedEmoji}>📍</Text>
+                  </View>
+                </Marker>
+              )}
+              </MapView>
             )}
-            
-            <WebView
-              ref={webViewRef}
-              source={{ html: leafletHTML }}
-              style={styles.webView}
-              onLoadEnd={() => setIsLoading(false)}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={true}
-            />
+
+            {/* Zoom Controls */}
+            <View style={styles.zoomControls}>
+              <TouchableOpacity
+                style={styles.zoomButton}
+                onPress={handleZoomIn}
+              >
+                <Text style={styles.zoomButtonText}>+</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.zoomButton}
+                onPress={handleZoomOut}
+              >
+                <Text style={styles.zoomButtonText}>−</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Instructions */}
           <View style={styles.instructions}>
             <Text style={styles.instructionText}>
-              🎯 Tap anywhere on the map or use GPS to select a location
+              🎯 Tap anywhere on the map or wildlife hotspots to select a location
             </Text>
           </View>
 
@@ -546,29 +559,189 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: 'monospace',
   },
+  mapTypeContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  mapTypeLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  mapTypeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  mapTypeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginHorizontal: 2,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  mapTypeButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  mapTypeButtonText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  mapTypeButtonTextActive: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  locationContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B35',
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  locationButtonEmoji: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  locationButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   mapContainer: {
     flex: 1,
     position: 'relative',
   },
-  webView: {
+  map: {
     flex: 1,
   },
-  loadingContainer: {
+  zoomControls: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    right: 15,
+    top: 15,
+    flexDirection: 'column',
+  },
+  zoomButton: {
+    width: 45,
+    height: 45,
+    backgroundColor: 'white',
+    borderRadius: 22.5,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
-    zIndex: 1000,
+    marginVertical: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
-  loadingText: {
-    marginTop: 10,
+  zoomButtonText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  hotspotMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  hotspotEmoji: {
+    fontSize: 20,
+  },
+  selectedMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  selectedEmoji: {
+    fontSize: 20,
+  },
+  mapErrorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 20,
+  },
+  mapErrorIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  mapErrorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  mapErrorText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  retryButtonText: {
+    color: 'white',
     fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: '500',
+    fontWeight: 'bold',
   },
   instructions: {
     padding: 10,
