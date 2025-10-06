@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 const { width, height } = Dimensions.get('window');
 
 const MainScreen = ({ navigation }) => {
-  const { user, signOut, hasPermission } = useAuth();
+  const { user, userData, signOut, hasPermission, USER_ROLES } = useAuth();
 
   const handleLogout = async () => {
     Alert.alert(
@@ -44,8 +44,8 @@ const MainScreen = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.userInfo}>
-            <Text style={styles.welcomeUser}>Welcome, {user?.firstName || 'User'}!</Text>
-            <Text style={styles.userRole}>Role: {user?.role || 'Unknown'}</Text>
+            <Text style={styles.welcomeUser}>Welcome, {userData?.firstName || user?.displayName || 'User'}!</Text>
+            <Text style={styles.userRole}>Role: {userData?.role || user?.role || 'Unknown'}</Text>
           </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -65,6 +65,17 @@ const MainScreen = ({ navigation }) => {
 
           {/* Action Buttons */}
           <View style={styles.buttonsContainer}>
+            {/* If user is an officer, show Poaching Alerts first */}
+            {userData?.role === USER_ROLES.OFFICER && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.addPoachingButton]}
+                onPress={() => navigation.navigate('PoachingAlerts')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>🚨</Text>
+                <Text style={styles.buttonTitle}>Poaching Alerts</Text>
+                <Text style={styles.buttonSubtitle}>View and manage alerts</Text>
+              </TouchableOpacity>
+            )}
             {hasPermission('canAddAnimals') && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.insertButton]}
@@ -81,13 +92,14 @@ const MainScreen = ({ navigation }) => {
                 style={[styles.actionButton, styles.poachingAnalyticsButton]}
                 onPress={() => navigation.navigate('PoachingAnalytics')}
                 activeOpacity={0.8}>
-                <Text style={styles.buttonIcon}>🛡️</Text>
+                <Text style={styles.buttonIcon}>�️</Text>
                 <Text style={styles.buttonTitle}>Poaching Analytics</Text>
                 <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
               </TouchableOpacity>
             )}
 
-            {hasPermission('canAddPoaching') && (
+            {/* For officers we hide the Add Poaching form and instead show Poaching Alerts */}
+            {hasPermission('canAddPoaching') && userData?.role !== USER_ROLES.OFFICER && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.addPoachingButton]}
                 onPress={() => navigation.navigate('AddPoaching')}
@@ -97,6 +109,8 @@ const MainScreen = ({ navigation }) => {
                 <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
               </TouchableOpacity>
             )}
+
+            {/* officer Poaching Alerts moved to top to prioritize alerts view */}
 
             {hasPermission('canViewAnalytics') && (
               <TouchableOpacity

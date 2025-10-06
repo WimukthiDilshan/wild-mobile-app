@@ -189,6 +189,7 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.roleInfoItem}>👁️ Visitor - View wildlife data</Text>
               <Text style={styles.roleInfoItem}>🚗 Driver - Report sightings & incidents</Text>
               <Text style={styles.roleInfoItem}>🔬 Researcher - Full access & analytics</Text>
+              <Text style={styles.roleInfoItem}>🛡️ Wildlife Officer - Enforcement & incident response</Text>
             </View>
           </View>
 

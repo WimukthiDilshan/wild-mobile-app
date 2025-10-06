@@ -9,8 +9,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  FlatList,
   ActivityIndicator,
   Animated,
 } from 'react-native';
@@ -33,9 +31,18 @@ const AddPoachingScreen = ({ navigation }) => {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [locationData, setLocationData] = useState(null);
   const [isGettingGPS, setIsGettingGPS] = useState(false);
+  // Evidence/media feature removed — simplified UI (no native modules required)
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(300)).current;
+
+  // Prefill reportedBy with logged-in user info when available
+  React.useEffect(() => {
+    const name = userData?.displayName || userData?.email || user?.email || '';
+    if (name) {
+      setFormData(prev => ({ ...prev, reportedBy: prev.reportedBy || name }));
+    }
+  }, [userData, user]);
 
   // Check if user has permission to add poaching reports
   if (!rolePermissions?.canAddData) {
@@ -102,6 +109,8 @@ const AddPoachingScreen = ({ navigation }) => {
     setShowMapPicker(false);
   };
 
+  
+
   const validateForm = () => {
     if (!formData.species.trim()) {
       Alert.alert('Error', 'Please enter the species name');
@@ -109,10 +118,6 @@ const AddPoachingScreen = ({ navigation }) => {
     }
     if (!formData.location.trim()) {
       Alert.alert('Error', 'Please enter the location');
-      return false;
-    }
-    if (!formData.date.trim()) {
-      Alert.alert('Error', 'Please enter the date (YYYY-MM-DD)');
       return false;
     }
     return true;
@@ -124,14 +129,22 @@ const AddPoachingScreen = ({ navigation }) => {
     setLoading(true);
     try {
       // Add logged-in user information to the form data
+      // Ensure date is set to current date (YYYY-MM-DD) if not provided
+      const dateString = formData.date && formData.date.trim()
+        ? formData.date.trim()
+        : new Date().toISOString().slice(0, 10);
+
       const poachingData = {
         ...formData,
+        date: dateString,
         // Add logged-in user information
         reportedBy: formData.reportedBy || userData?.displayName || userData?.email || user?.email || 'Unknown User',
         reportedByUserId: userData?.uid || user?.uid || null,
         reportedByRole: userData?.role || 'unknown',
         reportedAt: new Date().toISOString(),
       };
+
+
 
       await ApiService.reportPoachingIncident(poachingData);
       Alert.alert(
@@ -259,16 +272,7 @@ const AddPoachingScreen = ({ navigation }) => {
             )}
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date * (YYYY-MM-DD)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.date}
-              onChangeText={(value) => handleInputChange('date', value)}
-              placeholder="2025-09-22"
-              placeholderTextColor="#999"
-            />
-          </View>
+          {/* Date is auto-filled to current date on submit (YYYY-MM-DD) */}
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Severity Level</Text>
@@ -306,14 +310,15 @@ const AddPoachingScreen = ({ navigation }) => {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Reported By</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.reportedBy}
-              onChangeText={(value) => handleInputChange('reportedBy', value)}
-              placeholder="Your name or ranger ID"
-              placeholderTextColor="#999"
-            />
+            {/* Reported By is auto-filled from the logged-in user and not editable */}
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {formData.reportedBy || userData?.displayName || userData?.email || user?.email || 'Unknown'}
+              </Text>
+            </View>
           </View>
+
+          {/* Evidence feature removed to avoid native build issues */}
 
           <TouchableOpacity
             style={[styles.submitButton, loading && styles.disabledButton]}
@@ -568,6 +573,15 @@ const styles = StyleSheet.create({
   locationDataTime: {
     fontSize: 11,
     color: '#888',
+  },
+  readOnlyInput: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  readOnlyText: {
+    color: '#333',
+    fontSize: 16,
   },
 });
 

@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
     VISITOR: 'visitor',
     DRIVER: 'driver', 
     RESEARCHER: 'researcher',
+    OFFICER: 'officer',
   };
 
   // Role permissions
@@ -91,6 +92,28 @@ export const AuthProvider = ({ children }) => {
       canAddParks: true,
       canEditParks: true,
       canDeleteParks: true,
+      canAccessParkManagement: true,
+    },
+    [USER_ROLES.OFFICER]: {
+      canViewAnimals: true,
+      canViewPoaching: true,
+      canAddAnimals: true,
+      canAddPoaching: true,
+      canViewAnalytics: true,
+      canAccessHome: true,
+      canAccessInsertAnimals: true,
+      canAccessLogin: true,
+      canAccessMain: true,
+      canAccessSignUp: true,
+      canAccessAnalyst: true,
+      canAccessPoachingAnalytics: true,
+      canAccessAnimalAnalytics: true,
+      canAccessAnimalDetails: true,
+      canAddData: true,
+      canViewParks: true,
+      canAddParks: true,
+      canEditParks: true,
+      canDeleteParks: false,
       canAccessParkManagement: true,
     },
   };

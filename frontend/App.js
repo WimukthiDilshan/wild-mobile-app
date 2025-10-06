@@ -17,6 +17,8 @@ import AnimalAnalyticsScreen from './src/screens/AnimalAnalyticsScreen';
 import InsertAnimalsScreen from './src/screens/InsertAnimalsScreen';
 import PoachingAnalyticsScreen from './src/screens/PoachingAnalyticsScreen';
 import AddPoachingScreen from './src/screens/AddPoachingScreen';
+import PoachingAlertsScreen from './src/screens/PoachingAlertsScreen';
+import PoachingAlertDetailsScreen from './src/screens/PoachingAlertDetailsScreen';
 import ParkManagementScreen from './src/screens/ParkManagementScreen';
 import UserPreferences from './src/screens/UserPreferencesScreen';
 import RecommendationsScreen from './src/screens/RecommendationsScreen';
@@ -121,6 +123,7 @@ const AppNavigator = () => {
           options={{ title: '⚠️ Poaching Analytics' }}
         />
       )}
+      {/* Poaching screens */}
       {hasPermission('canAddPoaching') && (
         <Stack.Screen 
           name="AddPoaching" 
@@ -128,6 +131,16 @@ const AppNavigator = () => {
           options={{ title: '🚨 Report Poaching' }}
         />
       )}
+      <Stack.Screen
+        name="PoachingAlerts"
+        component={PoachingAlertsScreen}
+        options={{ title: '🚨 Poaching Alerts' }}
+      />
+      <Stack.Screen
+        name="PoachingAlertDetails"
+        component={PoachingAlertDetailsScreen}
+        options={{ title: '🚨 Alert Details' }}
+      />
       {hasPermission('canAccessParkManagement') && (
         <Stack.Screen 
           name="ParkManagement" 

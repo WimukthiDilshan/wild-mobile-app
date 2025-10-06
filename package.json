@@ -2,5 +2,8 @@
   "dependencies": {
     "react-native-fs": "^2.20.0",
     "react-native-share": "^12.2.0"
+  },
+  "devDependencies": {
+    "@react-native-community/cli": "^20.0.2"
   }
 }
