@@ -1,6 +1,7 @@
-import React from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, ScrollView } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
+import axios from 'axios';
 
 export default function RecommendationsScreen() {
   const route = useRoute();
@@ -9,19 +10,83 @@ export default function RecommendationsScreen() {
 
   const parksArray = Array.isArray(topParks) ? topParks : [];
 
+  const [recommendedParks, setRecommendedParks] = useState([]);
+  const userInput = route.params?.userInput || {}; // adjust as needed
+
+  const fetchRecommendations = async () => {
+    try {
+      const res = await axios.post('/api/recommend', userInput);
+      if (res.data.success) {
+        setRecommendedParks(res.data.data.topParks);
+      }
+    } catch (e) {
+      // handle error if needed
+    }
+  };
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, []);
+
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Recommended Parks</Text>
       <FlatList
         data={parksArray}
         keyExtractor={(item, idx) =>
-          item.park ? item.park : item.name ? item.name : idx.toString()
+          item.id ? item.id : item.name ? item.name : idx.toString()
         }
         renderItem={({ item, index }) => (
           <View style={styles.parkCard}>
             <Text style={styles.parkName}>
-              {index + 1}. {item.park || item.name || "Unnamed Park"}
+              {index + 1}. {item.name || item.park || "Unnamed Park"}
             </Text>
+            {item.location && (
+              <Text style={styles.detail}>📍 {item.location}</Text>
+            )}
+            {item.area && (
+              <Text style={styles.detail}>📏 Area: {item.area} km²</Text>
+            )}
+            {item.category && (
+              <Text style={styles.detail}>🏷️ Category: {item.category}</Text>
+            )}
+            {item.status && (
+              <Text style={styles.detail}>🔖 Status: {item.status}</Text>
+            )}
+            {item.activities && item.activities.length > 0 && (
+              <Text style={styles.detail}>
+                🎯 Activities: {item.activities.join(", ")}
+              </Text>
+            )}
+            {item.animalTypes && item.animalTypes.length > 0 && (
+              <Text style={styles.detail}>
+                🐾 Animal Types: {item.animalTypes.join(", ")}
+              </Text>
+            )}
+            {item.environments && item.environments.length > 0 && (
+              <Text style={styles.detail}>
+                🌳 Environments: {item.environments.join(", ")}
+              </Text>
+            )}
+            {item.experienceLevels && item.experienceLevels.length > 0 && (
+              <Text style={styles.detail}>
+                🏕️ Experience Levels: {item.experienceLevels.join(", ")}
+              </Text>
+            )}
+            {item.description && (
+              <Text style={styles.detail}>{item.description}</Text>
+            )}
+            {item.photoUrls && item.photoUrls.length > 0 && (
+              <ScrollView horizontal style={{ marginTop: 8 }}>
+                {item.photoUrls.map((url, idx) => (
+                  <Image
+                    key={`${item.id || index}-img-${idx}`}
+                    source={{ uri: url }}
+                    style={{ width: 100, height: 80, marginRight: 8, borderRadius: 8 }}
+                  />
+                ))}
+              </ScrollView>
+            )}
             {item.score !== undefined && (
               <Text style={styles.score}>Score: {item.score.toFixed(3)}</Text>
             )}
@@ -71,6 +136,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#388e3c",
     marginBottom: 6,
+  },
+  detail: {
+    fontSize: 14,
+    color: "#444",
+    marginBottom: 2,
   },
   score: {
     fontSize: 16,
