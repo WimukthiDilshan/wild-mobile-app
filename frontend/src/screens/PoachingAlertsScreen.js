@@ -74,7 +74,31 @@ const PoachingAlertsScreen = ({ navigation }) => {
   }, []);
 
   const renderItem = ({ item }) => {
-    const date = item.date ? new Date(item.date) : null;
+    // Prefer reportedAt (ISO string) or createdAt (Firestore Timestamp) if available.
+    // If `date` is a date-only string (YYYY-MM-DD) we show only the date (no time)
+    // because `new Date('YYYY-MM-DD')` is parsed as UTC midnight and will be
+    // displayed in local time (e.g. 05:30 AM for UTC+5:30), which looks odd.
+    let dateObj = null;
+    let dateText = '';
+    if (item.reportedAt) {
+      dateObj = new Date(item.reportedAt);
+      dateText = isNaN(dateObj.getTime()) ? String(item.reportedAt) : dateObj.toLocaleString();
+    } else if (item.createdAt && item.createdAt.seconds) {
+      // Firestore Timestamp serialization: { seconds, nanoseconds }
+      dateObj = new Date(item.createdAt.seconds * 1000);
+      dateText = dateObj.toLocaleString();
+    } else if (item.date) {
+      const d = String(item.date);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        // date-only -> show local date without time
+        const [y, m, day] = d.split('-').map(Number);
+        const localDate = new Date(y, m - 1, day);
+        dateText = localDate.toLocaleDateString();
+      } else {
+        dateObj = new Date(d);
+        dateText = isNaN(dateObj.getTime()) ? d : dateObj.toLocaleString();
+      }
+    }
     return (
       <TouchableOpacity
         activeOpacity={0.8}
@@ -97,7 +121,7 @@ const PoachingAlertsScreen = ({ navigation }) => {
             </View>
           </View>
           <Text style={styles.meta}>{item.location || formatLatLng(item)}</Text>
-          {date && <Text style={styles.meta}>{date.toLocaleString()}</Text>}
+          {dateText ? <Text style={styles.meta}>{dateText}</Text> : null}
         </View>
       </TouchableOpacity>
     );

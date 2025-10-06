@@ -2,9 +2,39 @@
 // Use 10.0.2.2 for Android emulator (maps to localhost on host machine)
 // Use localhost for iOS simulator and physical devices on same network
 import auth from '@react-native-firebase/auth';
+import { NativeModules, Platform } from 'react-native';
 
-// Load runtime config (useful to switch backend URL without editing code)
+// Default fallback (emulator)
 let BASE_URL = 'http://10.0.2.2:3000/api';
+
+function hostnameFromScriptURL() {
+  try {
+    const scriptURL = NativeModules && NativeModules.SourceCode && NativeModules.SourceCode.scriptURL;
+    if (!scriptURL) return null;
+    // e.g. http://192.168.8.111:8081/index.bundle?platform=android
+    const m = scriptURL.match(/^https?:\/\/([^:/]+)(?::(\d+))?/i);
+    if (!m) return null;
+    return m[1];
+  } catch (e) {
+    return null;
+  }
+}
+
+// Try to resolve a useful BASE_URL in dev: prioritize Metro's scriptURL host so
+// the app running on the device will talk to the developer machine. Fall back
+// to config.json and then to the emulator default.
+if (__DEV__) {
+  const host = hostnameFromScriptURL();
+  if (host) {
+    const resolvedHost = (Platform.OS === 'android' && (host === 'localhost' || host === '127.0.0.1')) ? '10.0.2.2' : host;
+    BASE_URL = `http://${resolvedHost}:3000/api`;
+    // eslint-disable-next-line no-console
+    console.log('🌐 Detected local IP:', BASE_URL);
+  }
+}
+
+
+
 try {
   // require at runtime; bundler will include config.json
   // Edit frontend/config.json to change BASE_URL for physical devices
@@ -183,6 +213,19 @@ class ApiService {
       }
     } catch (error) {
       console.error('Error reporting poaching incident:', error);
+      throw error;
+    }
+  }
+
+  async fetchPoachingIncidentById(id) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/poaching/${encodeURIComponent(id)}`, { headers });
+      const data = await response.json();
+      if (data.success) return data.data;
+      throw new Error(data.error || 'Failed to fetch incident');
+    } catch (error) {
+      console.error('Error fetching incident by id:', error);
       throw error;
     }
   }

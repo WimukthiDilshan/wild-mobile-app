@@ -348,7 +348,8 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
   try {
     const { 
       species, location, date, severity, description,
-      reportedBy, reportedByUserId, reportedByRole, reportedAt 
+      reportedBy, reportedByUserId, reportedByRole, reportedAt,
+      evidence
     } = req.body;
     if (!species || !location || !date || !severity) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -370,6 +371,8 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
       date,
       severity,
       description: description || '',
+      // Evidence: array of uploaded image URLs
+      evidence: Array.isArray(evidence) ? evidence : [],
       // Enhanced user tracking (from frontend)
       reportedBy: reportedBy || req.user.displayName || req.user.email,
       reportedByUserId: reportedByUserId || req.user.uid,
@@ -708,6 +711,24 @@ app.get('/api/poaching/analytics', async (req, res) => {
   } catch (error) {
     console.error('Error in poaching analytics:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch poaching analytics' });
+  }
+});
+
+// Get a single poaching incident by ID
+app.get('/api/poaching/:id', optionalAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('poaching_incidents').doc(id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, error: 'Incident not found' });
+    }
+    const data = doc.data();
+    // Ensure backwards compat fields
+    const incident = { id: doc.id, status: data.status || 'pending', severity: data.severity || 'Medium', ...data };
+    res.json({ success: true, data: incident });
+  } catch (error) {
+    console.error('Error fetching incident by id:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch incident' });
   }
 });
 

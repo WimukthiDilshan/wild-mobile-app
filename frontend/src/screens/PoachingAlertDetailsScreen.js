@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image } from 'react-native';
 import ApiService from '../services/ApiService';
 import LocationService from '../services/LocationService';
 import WildlifeMapPicker from '../components/WildlifeMapPicker';
@@ -48,6 +48,26 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
 
   const { userData } = useAuth();
 
+  // Fetch latest incident from server (to get persisted evidence URLs etc.)
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        if (currentIncident && currentIncident.id) {
+          const fresh = await ApiService.fetchPoachingIncidentById(currentIncident.id);
+          if (!cancelled && fresh) {
+            setCurrentIncident({ status: fresh.status || currentIncident.status, ...fresh });
+          }
+        }
+      } catch (e) {
+        // ignore fetch errors for now
+        console.warn('Could not refresh incident:', e.message || e);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   const updateStatus = async (newStatus) => {
     if (!currentIncident || !currentIncident.id) return;
     Alert.alert(
@@ -91,6 +111,8 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
   };
 
   const [showMapPicker, setShowMapPicker] = useState(false);
+  const [evidenceViewerVisible, setEvidenceViewerVisible] = useState(false);
+  const [evidenceIndex, setEvidenceIndex] = useState(0);
 
   const parseCoords = (it) => {
     if (!it) return null;
@@ -183,6 +205,34 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
         </View>
       )}
 
+      {/* Evidence gallery (thumbnails) */}
+      {(currentIncident.evidence && currentIncident.evidence.length > 0) && (
+        <View style={styles.section}>
+          <Text style={styles.label}>Evidence</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.evidenceScroll}>
+            {currentIncident.evidence.map((url, idx) => (
+              <TouchableOpacity key={idx} onPress={() => { setEvidenceIndex(idx); setEvidenceViewerVisible(true); }} activeOpacity={0.85}>
+                <Image source={{ uri: url }} style={styles.evidenceThumb} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Full screen evidence viewer */}
+      <Modal visible={evidenceViewerVisible} transparent animationType="fade">
+        <View style={styles.viewerBackdrop}>
+          <TouchableOpacity style={styles.viewerClose} onPress={() => setEvidenceViewerVisible(false)}>
+            <Text style={styles.viewerCloseText}>Close</Text>
+          </TouchableOpacity>
+          {currentIncident.evidence && currentIncident.evidence[evidenceIndex] ? (
+            <Image source={{ uri: currentIncident.evidence[evidenceIndex] }} style={styles.viewerImage} resizeMode="contain" />
+          ) : (
+            <Text style={{ color: '#fff' }}>No image</Text>
+          )}
+        </View>
+      </Modal>
+
         <Modal visible={modalVisible} animationType="slide" transparent>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalContent}>
@@ -256,6 +306,12 @@ const styles = StyleSheet.create({
   viewLocationButtonText: { color: '#fff', fontWeight: '700' },
   locationDetails: { marginTop: 8, padding: 10, backgroundColor: '#FFF', borderRadius: 8 },
   meta: { color: '#666', fontSize: 13 },
+  evidenceScroll: { marginTop: 8 },
+  evidenceThumb: { width: 96, height: 96, borderRadius: 8, marginRight: 10, backgroundColor: '#eee' },
+  viewerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  viewerImage: { width: '92%', height: '78%' },
+  viewerClose: { position: 'absolute', top: 36, left: 16, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 6 },
+  viewerCloseText: { color: '#fff', fontWeight: '700' },
 });
 
 export default PoachingAlertDetailsScreen;

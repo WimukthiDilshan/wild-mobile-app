@@ -11,7 +11,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-export default function ImageUploader({ onUpload }) {
+export default function ImageUploader({ onUpload, onUploadingChange }) {
   const [imageUris, setImageUris] = useState([]);
   const [uploading, setUploading] = useState(false);
 
@@ -37,6 +37,7 @@ export default function ImageUploader({ onUpload }) {
 
   const uploadMultipleToCloudinary = async (uris) => {
     setUploading(true);
+    if (typeof onUploadingChange === 'function') onUploadingChange(true);
     const uploadedUrls = [];
 
     for (const uri of uris) {
@@ -65,6 +66,7 @@ export default function ImageUploader({ onUpload }) {
     }
 
     setUploading(false);
+  if (typeof onUploadingChange === 'function') onUploadingChange(false);
 
     // ✅ Send all uploaded URLs to parent
     if (onUpload) {

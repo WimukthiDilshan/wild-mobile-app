@@ -16,6 +16,7 @@ import ApiService from '../services/ApiService';
 import { useAuth } from '../contexts/AuthContext';
 import LocationService from '../services/LocationService';
 import WildlifeMapPicker from '../components/WildlifeMapPicker';
+import ImageUploader from '../uploads/ImageUpload';
 
 const AddPoachingScreen = ({ navigation }) => {
   const { user, userData, rolePermissions } = useAuth();
@@ -31,6 +32,8 @@ const AddPoachingScreen = ({ navigation }) => {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [locationData, setLocationData] = useState(null);
   const [isGettingGPS, setIsGettingGPS] = useState(false);
+  const [evidenceUrls, setEvidenceUrls] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   // Evidence/media feature removed — simplified UI (no native modules required)
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -137,6 +140,7 @@ const AddPoachingScreen = ({ navigation }) => {
       const poachingData = {
         ...formData,
         date: dateString,
+        evidence: evidenceUrls,
         // Add logged-in user information
         reportedBy: formData.reportedBy || userData?.displayName || userData?.email || user?.email || 'Unknown User',
         reportedByUserId: userData?.uid || user?.uid || null,
@@ -162,6 +166,7 @@ const AddPoachingScreen = ({ navigation }) => {
                 description: '',
                 reportedBy: '',
               });
+              setEvidenceUrls([]);
               navigation.goBack();
             }
           }
@@ -309,6 +314,23 @@ const AddPoachingScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.inputGroup}>
+            <Text style={styles.label}>Evidence (photos)</Text>
+            <ImageUploader
+              onUpload={(updater) => {
+                // ImageUploader calls onUpload with an updater function
+                setEvidenceUrls(prev => (typeof updater === 'function' ? updater(prev) : updater));
+              }}
+              onUploadingChange={(isUploading) => setUploadingImages(isUploading)}
+            />
+            {evidenceUrls.length > 0 && (
+              <Text style={{ marginTop: 8, color: '#666' }}>{evidenceUrls.length} image(s) selected</Text>
+            )}
+            {uploadingImages && (
+              <Text style={{ marginTop: 6, color: '#d84315' }}>Uploading images — please wait before submitting</Text>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Reported By</Text>
             {/* Reported By is auto-filled from the logged-in user and not editable */}
             <View style={[styles.input, styles.readOnlyInput]}>
@@ -321,9 +343,9 @@ const AddPoachingScreen = ({ navigation }) => {
           {/* Evidence feature removed to avoid native build issues */}
 
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.disabledButton]}
+            style={[styles.submitButton, (loading || uploadingImages) && styles.disabledButton]}
             onPress={handleSubmit}
-            disabled={loading}>
+            disabled={loading || uploadingImages}>
             <Text style={styles.submitButtonText}>
               {loading ? 'Reporting...' : 'Report Incident'}
             </Text>
