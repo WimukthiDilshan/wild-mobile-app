@@ -5,6 +5,8 @@ const helmet = require('helmet');
 require('dotenv').config();
 const { PythonShell } = require('python-shell'); // Or Flask API approach
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -458,10 +460,15 @@ app.post('/api/parks', authenticateUser, async (req, res) => {
       coordinates,
       facilities,
       category,
-      status
+      status,
+      photoUrls,        // ✅ multiple image URLs (array)
+      animalTypes,
+      activities,
+      environments,
+      experienceLevels,
     } = req.body;
 
-    // Validation
+    // --- Validation ---
     if (!name || !location) {
       return res.status(400).json({
         success: false,
@@ -469,6 +476,7 @@ app.post('/api/parks', authenticateUser, async (req, res) => {
       });
     }
 
+    // --- Park Object ---
     const parkData = {
       name: name.trim(),
       location: location.trim(),
@@ -479,6 +487,11 @@ app.post('/api/parks', authenticateUser, async (req, res) => {
       facilities: facilities || '',
       category: category || 'National Park',
       status: status || 'Active',
+      photoUrls: Array.isArray(photoUrls) ? photoUrls : [],   // ✅ store as array
+      animalTypes: Array.isArray(animalTypes) ? animalTypes : [],
+      activities: Array.isArray(activities) ? activities : [],
+      environments: Array.isArray(environments) ? environments : [],
+      experienceLevels: Array.isArray(experienceLevels) ? experienceLevels : [],
       createdBy: {
         uid: req.user.uid,
         displayName: req.user.displayName,
@@ -486,10 +499,76 @@ app.post('/api/parks', authenticateUser, async (req, res) => {
         role: req.user.role,
       },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
+    // --- Save to Firestore ---
     const docRef = await db.collection('parks').add(parkData);
+
+    // --- CSV Formatting and Append ---
+    const csvPath = path.join(__dirname, 'python', 'parks.csv');
+    const columns = [
+      "mammals", "birds", "reptiles", "amphibians", "insects" ,
+      'safari', 'camping', 'birdwatching', 'hiking',
+      'forest', 'wetland', 'mountain', 'coastal',
+      'family', 'adventure', 'relaxation'
+    ];
+    const animalMap = {
+      mammals: 'mammals',
+      birds: 'birds',
+      reptiles: 'reptiles',
+      amphibians: 'amphibians',
+      insects: 'insects Bear'
+    };
+    const activityMap = {
+      safari: 'Safari Rides',
+      camping: 'Camping',
+      birdwatching: 'Bird Watching',
+      hiking: 'Hiking'
+    };
+    const envMap = {
+      forest: 'Forest',
+      wetland: 'Wetland',
+      mountain: 'Mountain',
+      coastal: 'Coastal'
+    };
+    const expMap = {
+      family: 'Family Friendly',
+      adventure: 'Adventure Seekers',
+      relaxation: 'Relaxation and Nature'
+    };
+
+    function arrToCsv(arr, map) {
+      return Object.keys(map).map(key => arr.includes(map[key]) ? 1 : 0);
+    }
+
+    const csvRow = [
+      parkData.name, // <-- Remove quotes, keep spaces
+      ...arrToCsv(parkData.animalTypes || [], animalMap),
+      ...arrToCsv(parkData.activities || [], activityMap),
+      ...arrToCsv(parkData.environments || [], envMap),
+      ...arrToCsv(parkData.experienceLevels || [], expMap)
+    ].join(',');
+
+    fs.appendFile(csvPath, `\n${csvRow}`, err => {
+      if (err) {
+        console.error('Error writing to CSV:', err);
+      } else {
+        // Retrain model after CSV update
+        const py = spawn('python', [path.join(__dirname, 'python', 'train_model.py')]);
+        py.stdout.on('data', (data) => {
+          console.log('[train_model.py]', data.toString());
+        });
+        py.stderr.on('data', (data) => {
+          console.error('[train_model.py ERROR]', data.toString());
+        });
+        py.on('close', (code) => {
+          console.log(`train_model.py exited with code ${code}`);
+        });
+      }
+    });
+    // --- End CSV logic ---
+
     res.status(201).json({ success: true, data: { id: docRef.id, ...parkData } });
   } catch (error) {
     console.error('Error adding park:', error);
@@ -510,7 +589,12 @@ app.put('/api/parks/:id', authenticateUser, async (req, res) => {
       coordinates,
       facilities,
       category,
-      status
+      status,
+      photoUrl,
+      animalTypes,      // <-- Add this
+      activities,       // <-- Add this
+      environments,     // <-- Add this
+      experienceLevels  // <-- Add this
     } = req.body;
 
     // Check if park exists
@@ -537,6 +621,11 @@ app.put('/api/parks/:id', authenticateUser, async (req, res) => {
       facilities: facilities || '',
       category: category || 'National Park',
       status: status || 'Active',
+      photoUrl: photoUrl || '',
+      animalTypes: Array.isArray(animalTypes) ? animalTypes : [],         // <-- Add this
+      activities: Array.isArray(activities) ? activities : [],            // <-- Add this
+      environments: Array.isArray(environments) ? environments : [],      // <-- Add this
+      experienceLevels: Array.isArray(experienceLevels) ? experienceLevels : [], // <-- Add this
       updatedBy: {
         uid: req.user.uid,
         displayName: req.user.displayName,
