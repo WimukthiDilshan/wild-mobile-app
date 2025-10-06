@@ -10,7 +10,7 @@ import {
 import ApiService from "../services/ApiService";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
-const animals = ["Leopard", "Elephant", "Bird", "Crocodile", "Sloth Bear"];
+const animals = ["mammals", "birds", "reptiles", "amphibians", "insects"];
 const activities = ["Safari Rides", "Bird Watching", "Camping", "Hiking"];
 const environments = ["Forest", "Wetland", "Mountain", "Coastal"];
 const experienceLevels = [
@@ -70,11 +70,11 @@ export default function UserPreferencesScreen() {
     setIsLoading(true);
     try {
       const featureVector = {
-        leopard: userPreferences.animals.includes("Leopard") ? 1 : 0,
-        elephant: userPreferences.animals.includes("Elephant") ? 1 : 0,
-        bird: userPreferences.animals.includes("Bird") ? 1 : 0,
-        crocodile: userPreferences.animals.includes("Crocodile") ? 1 : 0,
-        sloth_bear: userPreferences.animals.includes("Sloth Bear") ? 1 : 0,
+        leopard: userPreferences.animals.includes("mammals") ? 1 : 0,
+        elephant: userPreferences.animals.includes("birds") ? 1 : 0,
+        bird: userPreferences.animals.includes("reptiles") ? 1 : 0,
+        crocodile: userPreferences.animals.includes("amphibians") ? 1 : 0,
+        sloth_bear: userPreferences.animals.includes("insects") ? 1 : 0,
         safari: userPreferences.activities.includes("Safari Rides") ? 1 : 0,
         birdwatching: userPreferences.activities.includes("Bird Watching") ? 1 : 0,
         camping: userPreferences.activities.includes("Camping") ? 1 : 0,

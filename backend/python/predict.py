@@ -3,7 +3,7 @@ import numpy as np
 
 # Fixed feature order
 FEATURE_ORDER = [
-    "leopard", "elephant", "bird", "crocodile", "sloth_bear",
+    "mammals", "birds", "reptiles", "amphibians", "insects" ,
     "safari", "camping", "birdwatching", "hiking",
     "forest", "wetland", "mountain", "coastal",
     "family", "adventure", "relaxation"

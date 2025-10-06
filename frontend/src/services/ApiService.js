@@ -208,10 +208,11 @@ class ApiService {
   async addPark(parkData) {
     try {
       const headers = await this.getAuthHeaders();
+      // parkData should include photoUrl if present
       const response = await fetch(`${BASE_URL}/parks`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(parkData),
+        body: JSON.stringify(parkData), // photoUrl included
       });
       
       const data = await response.json();
@@ -230,10 +231,11 @@ class ApiService {
   async updatePark(id, parkData) {
     try {
       const headers = await this.getAuthHeaders();
+      // parkData should include photoUrl if present
       const response = await fetch(`${BASE_URL}/parks/${id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(parkData),
+        body: JSON.stringify(parkData), // photoUrl included
       });
       
       const data = await response.json();
