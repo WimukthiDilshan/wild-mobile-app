@@ -63,6 +63,14 @@ const SignUpScreen = ({ navigation }) => {
       color: '#4CAF50',
       permissions: ['Full data access', 'Advanced analytics', 'Research tools', 'Data export'],
     },
+    {
+      id: USER_ROLES.OFFICER,
+      name: 'Wildlife Officer',
+      emoji: '🛡️',
+      description: 'Field officer responsible for enforcement and incident response',
+      color: '#8E44AD',
+      permissions: ['Report and manage incidents', 'Access enforcement tools', 'View analytics'],
+    },
   ];
 
   React.useEffect(() => {

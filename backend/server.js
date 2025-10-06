@@ -16,6 +16,14 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// Simple request logger for debugging (prints method and path)
+app.use((req, res, next) => {
+  try {
+    console.log(new Date().toISOString(), req.method, req.originalUrl || req.url);
+  } catch (e) {}
+  next();
+});
+
 // Initialize Firebase Admin
 try {
   const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || './config/serviceAccountKey.json');
@@ -268,7 +276,7 @@ app.post('/api/animals', authenticateUser, async (req, res) => {
 
     // Check if user has permission to add animals
     const userRole = req.user.role;
-    if (!userRole || (userRole !== 'driver' && userRole !== 'researcher' && userRole !== 'visitor')) {
+    if (!userRole || (userRole !== 'driver' && userRole !== 'researcher' && userRole !== 'visitor' && userRole !== 'officer')) {
       return res.status(403).json({
         success: false,
         error: 'You do not have permission to add animal data'
@@ -324,7 +332,9 @@ app.get('/api/poaching', optionalAuth, async (req, res) => {
     const snapshot = await db.collection('poaching_incidents').orderBy('date', 'desc').get();
     const incidents = [];
     snapshot.forEach(doc => {
-      incidents.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      // Ensure status field exists for older documents
+      incidents.push({ id: doc.id, status: data.status || 'pending', ...data });
     });
     res.json({ success: true, data: incidents, count: incidents.length });
   } catch (error) {
@@ -338,7 +348,8 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
   try {
     const { 
       species, location, date, severity, description,
-      reportedBy, reportedByUserId, reportedByRole, reportedAt 
+      reportedBy, reportedByUserId, reportedByRole, reportedAt,
+      evidence
     } = req.body;
     if (!species || !location || !date || !severity) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -346,7 +357,7 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
 
     // Check if user has permission to report poaching incidents
     const userRole = req.user.role;
-    if (!userRole || (userRole !== 'driver' && userRole !== 'researcher' && userRole !== 'visitor')) {
+    if (!userRole || (userRole !== 'driver' && userRole !== 'researcher' && userRole !== 'visitor' && userRole !== 'officer')) {
       return res.status(403).json({
         success: false,
         error: 'You do not have permission to report poaching incidents'
@@ -356,9 +367,12 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
     const data = {
       species,
       location,
+      status: 'pending',
       date,
       severity,
       description: description || '',
+      // Evidence: array of uploaded image URLs
+      evidence: Array.isArray(evidence) ? evidence : [],
       // Enhanced user tracking (from frontend)
       reportedBy: reportedBy || req.user.displayName || req.user.email,
       reportedByUserId: reportedByUserId || req.user.uid,
@@ -700,6 +714,24 @@ app.get('/api/poaching/analytics', async (req, res) => {
   }
 });
 
+// Get a single poaching incident by ID
+app.get('/api/poaching/:id', optionalAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('poaching_incidents').doc(id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, error: 'Incident not found' });
+    }
+    const data = doc.data();
+    // Ensure backwards compat fields
+    const incident = { id: doc.id, status: data.status || 'pending', severity: data.severity || 'Medium', ...data };
+    res.json({ success: true, data: incident });
+  } catch (error) {
+    console.error('Error fetching incident by id:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch incident' });
+  }
+});
+
 
 app.post('/api/recommend', (req, res) => {
   const input = JSON.stringify(req.body);
@@ -731,6 +763,50 @@ app.post('/api/recommend', (req, res) => {
       res.status(500).json({ success: false, error: 'Invalid JSON from Python', raw: data });
     }
   });
+});
+
+// Update a poaching incident (status or other small updates) - requires authentication
+app.put('/api/poaching/:id', authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, assignedTo } = req.body;
+
+    if (!status && !assignedTo) {
+      return res.status(400).json({ success: false, error: 'No update fields provided' });
+    }
+
+    // Only allow officers to change status/assignment
+    const role = req.user?.role;
+    if (!role || role !== 'officer') {
+      return res.status(403).json({ success: false, error: 'Insufficient permissions to update incident' });
+    }
+
+    const docRef = db.collection('poaching_incidents').doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, error: 'Incident not found' });
+    }
+
+    const updateData = {
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: {
+        uid: req.user.uid,
+        displayName: req.user.displayName || req.user.email,
+        role: req.user.role,
+      }
+    };
+
+    if (status) updateData.status = status;
+    if (assignedTo) updateData.assignedTo = assignedTo;
+
+    await docRef.update(updateData);
+
+    const updatedDoc = await docRef.get();
+    res.json({ success: true, data: { id: updatedDoc.id, ...updatedDoc.data() } });
+  } catch (error) {
+    console.error('Error updating poaching incident:', error);
+    res.status(500).json({ success: false, error: 'Failed to update poaching incident' });
+  }
 });
 
 
