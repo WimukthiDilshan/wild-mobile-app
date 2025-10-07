@@ -267,6 +267,40 @@ const SafariMapScreen = ({ navigation, route }) => {
     );
   };
 
+  const handleStillTherePress = (animal) => {
+    Alert.alert(
+      'Still there?',
+      `Is ${animal.name} still at this location?`,
+      [
+        {
+          text: 'Yes',
+          style: 'cancel',
+        },
+        {
+          text: 'No',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Remove from Firestore
+              await firestore()
+                .collection('animal_markers')
+                .doc(animal.id)
+                .delete();
+              
+              // Remove from local state
+              setAnimalMarkers(prev => prev.filter(a => a.id !== animal.id));
+              
+              Alert.alert('Removed', `${animal.name} has been removed from the map.`);
+            } catch (error) {
+              console.error('Error removing animal marker:', error);
+              Alert.alert('Error', 'Failed to remove the animal marker.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -362,6 +396,12 @@ const SafariMapScreen = ({ navigation, route }) => {
               }}
               title={animal.name}
               description={`Count: ${animal.count}`}
+              tracksViewChanges={false}
+              onPress={() => {
+                if (isNearby) {
+                  handleStillTherePress(animal);
+                }
+              }}
             >
               <View style={styles.animalMarkerContainer}>
                 {isNearby && (
@@ -728,19 +768,22 @@ const styles = StyleSheet.create({
   },
   stillThereLabel: {
     backgroundColor: '#FF9800',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 5,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3,
-    elevation: 3,
+    elevation: 5,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stillThereLabelText: {
     color: 'white',
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   animalMarker: {
