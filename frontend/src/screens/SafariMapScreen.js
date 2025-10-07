@@ -16,6 +16,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import ApiService from '../services/ApiService';
 import { useAuth } from '../contexts/AuthContext';
 import firestore from '@react-native-firebase/firestore';
+import LocationService from '../services/LocationService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,6 +38,7 @@ const SafariMapScreen = ({ navigation, route }) => {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [pinnedLocation, setPinnedLocation] = useState(null);
   const [animalMarkers, setAnimalMarkers] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -106,6 +108,23 @@ const SafariMapScreen = ({ navigation, route }) => {
 
     loadAnimalMarkers();
   }, [park?.id]);
+
+  // Fetch user's current GPS location on mount
+  React.useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const location = await LocationService.getCurrentLocation();
+        setUserLocation({
+          latitude: location.latitude,
+          longitude: location.longitude,
+        });
+      } catch (error) {
+        console.error('Error getting user location:', error);
+      }
+    };
+
+    getUserLocation();
+  }, []);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -335,6 +354,27 @@ const SafariMapScreen = ({ navigation, route }) => {
             </View>
           </Marker>
         ))}
+
+        {/* User's Current Location Marker */}
+        {userLocation && (
+          <Marker
+            coordinate={{
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            }}
+            title="Your Location"
+            description="Current GPS location"
+          >
+            <View style={styles.userLocationContainer}>
+              <View style={styles.userLocationLabel}>
+                <Text style={styles.userLocationLabelText}>Your Location</Text>
+              </View>
+              <View style={styles.userLocationMarker}>
+                <Text style={styles.userLocationMarkerText}>📍</Text>
+              </View>
+            </View>
+          </Marker>
+        )}
       </MapView>
 
       {/* Zoom Controls */}
@@ -678,6 +718,44 @@ const styles = StyleSheet.create({
   },
   animalMarkerText: {
     fontSize: 26,
+  },
+  userLocationContainer: {
+    alignItems: 'center',
+  },
+  userLocationLabel: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    marginBottom: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  userLocationLabelText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  userLocationMarker: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: '#2196F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  userLocationMarkerText: {
+    fontSize: 22,
   },
   zoomControls: {
     position: 'absolute',
