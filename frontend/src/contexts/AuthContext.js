@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Alert, Platform } from 'react-native';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import messaging from '@react-native-firebase/messaging';
+import ApiService from '../services/ApiService';
 
 const AuthContext = createContext({});
 
@@ -131,6 +134,110 @@ export const AuthProvider = ({ children }) => {
           
           if (userDoc.exists) {
             setUserData(userDoc.data());
+          }
+          
+          // Try to get FCM token and persist it on the user's document so backend can send notifications
+          try {
+            const fcmStatus = await messaging().hasPermission?.();
+            // Request permission on iOS if necessary (messaging.requestPermission may be undefined on Android)
+            if (messaging().requestPermission) {
+              await messaging().requestPermission();
+            }
+          } catch (permErr) {
+            // ignore permission errors; token request may still work on Android
+          }
+
+          try {
+            const token = await messaging().getToken();
+            if (token) {
+              try {
+                // register token with backend API (authenticated)
+                await ApiService.registerDeviceToken(token);
+              } catch (regErr) {
+                console.debug('Failed to register device token through API, fallback to client-side write:', regErr.message || regErr);
+                // fallback: write directly to Firestore so server may still pick it up
+                await firestore().collection('users').doc(authUser.uid).set({
+                  fcmToken: token,
+                  pushToken: token,
+                  notificationToken: token,
+                  updatedAt: firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+              }
+            }
+
+            // If user is an officer, subscribe to 'officers' topic (client-side subscription)
+            const role = userDoc.exists ? userDoc.data()?.role : null;
+            if (role === 'officer') {
+              try {
+                await messaging().subscribeToTopic('officers');
+              } catch (subErr) {
+                console.debug('Failed to subscribe to officers topic:', subErr.message || subErr);
+              }
+            }
+            // Foreground message handler
+            const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
+              console.log('FCM foreground message received:', remoteMessage);
+              try {
+                const title = remoteMessage?.notification?.title || 'Notification';
+                const body = remoteMessage?.notification?.body || JSON.stringify(remoteMessage?.data || {});
+                Alert.alert(title, body);
+              } catch (e) {
+                console.debug('Failed to show alert for foreground message', e);
+              }
+
+              // Persist a receipt to Firestore for server-side verification (helps automated tests)
+              try {
+                await firestore().collection('push_receipts').add({
+                  uid: authUser?.uid || null,
+                  email: authUser?.email || null,
+                  receivedAt: new Date().toISOString(),
+                  foreground: true,
+                  remoteMessage
+                });
+              } catch (writeErr) {
+                console.debug('Failed to write push receipt to Firestore', writeErr);
+              }
+            });
+
+            // Handle notification opened from a background state
+            const unsubscribeOnNotificationOpened = messaging().onNotificationOpenedApp(async remoteMessage => {
+              console.log('Notification opened (background):', remoteMessage);
+              try {
+                await firestore().collection('push_receipts').add({
+                  uid: authUser?.uid || null,
+                  email: authUser?.email || null,
+                  receivedAt: new Date().toISOString(),
+                  foreground: false,
+                  opened: true,
+                  remoteMessage
+                });
+              } catch (writeErr) {
+                console.debug('Failed to write push receipt (opened) to Firestore', writeErr);
+              }
+              // TODO: navigate to incident details if payload contains incidentId
+            });
+
+            // Handle when the app is opened from a quit state by a notification
+            messaging().getInitialNotification().then(async remoteMessage => {
+              if (remoteMessage) {
+                console.log('App opened from quit state by notification:', remoteMessage);
+                try {
+                  await firestore().collection('push_receipts').add({
+                    uid: authUser?.uid || null,
+                    email: authUser?.email || null,
+                    receivedAt: new Date().toISOString(),
+                    foreground: false,
+                    opened: true,
+                    initialNotification: true,
+                    remoteMessage
+                  });
+                } catch (writeErr) {
+                  console.debug('Failed to write push receipt (initial) to Firestore', writeErr);
+                }
+              }
+            }).catch(e => {});
+          } catch (tokErr) {
+            console.debug('FCM token registration failed:', tokErr.message || tokErr);
           }
         } catch (error) {
           console.error('Error fetching user data:', error);

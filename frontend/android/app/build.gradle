@@ -124,6 +124,9 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Firebase Messaging native library required for MyFirebaseMessagingService
+    implementation 'com.google.firebase:firebase-messaging:23.4.0'
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)

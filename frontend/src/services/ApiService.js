@@ -217,6 +217,23 @@ class ApiService {
     }
   }
 
+  async registerDeviceToken(token) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${BASE_URL}/device-token`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ token }),
+      });
+      const data = await response.json();
+      if (data && data.success) return true;
+      throw new Error(data.error || 'Failed to register device token');
+    } catch (error) {
+      console.error('Error registering device token:', error);
+      throw error;
+    }
+  }
+
   async fetchPoachingIncidentById(id) {
     try {
       const headers = await this.getAuthHeaders();

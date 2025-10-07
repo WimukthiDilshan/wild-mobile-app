@@ -27,10 +27,10 @@ app.use((req, res, next) => {
 // Initialize Firebase Admin
 try {
   const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || './config/serviceAccountKey.json');
-  
+
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    projectId: process.env.FIREBASE_PROJECT_ID
+    projectId: process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id
   });
 
   console.log('Firebase Admin initialized successfully');
@@ -40,6 +40,177 @@ try {
 }
 
 const db = admin.firestore();
+
+/**
+ * Build a richer notification + data payload for poaching incidents.
+ * Includes species, location, severity, reporter and reportedAt fields.
+ */
+function buildPoachingNotification(incidentId, incidentData, opts = {}) {
+  const reporter = incidentData.reportedBy || incidentData.reportedByUserId || incidentData.reportedByRole || 'Unknown';
+  const species = incidentData.species || 'Unknown species';
+  const severity = incidentData.severity || 'Unknown';
+  const reportedAt = incidentData.reportedAt || incidentData.date || new Date().toISOString();
+
+  // Normalize location to a short string
+  let locationStr = 'Unknown location';
+  if (typeof incidentData.location === 'string' && incidentData.location.trim()) {
+    locationStr = incidentData.location;
+  } else if (incidentData.location && typeof incidentData.location === 'object') {
+    const lat = incidentData.location.latitude || incidentData.location.lat || '';
+    const lon = incidentData.location.longitude || incidentData.location.lng || incidentData.location.lon || '';
+    if (lat || lon) locationStr = `${lat},${lon}`;
+    else if (incidentData.location.name) locationStr = incidentData.location.name;
+  }
+
+  const shortDesc = (incidentData.description || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const title = opts.dev ? `🚨 New Poaching Report (dev): ${species}` : `🚨 New Poaching Report`;
+  const bodyParts = [`${species}`];
+  if (locationStr) bodyParts.push(`at ${locationStr}`);
+  if (severity) bodyParts.push(`(severity: ${severity})`);
+  if (reporter) bodyParts.push(`reported by ${reporter}`);
+  const body = `${bodyParts.join(' ')}${shortDesc ? ` — ${shortDesc}` : ''}`;
+
+  return {
+    notification: { title, body },
+    data: {
+      incidentId: incidentId || '',
+      type: 'poaching',
+      species,
+      location: typeof incidentData.location === 'string' ? incidentData.location : JSON.stringify(incidentData.location || {}),
+      severity,
+      reportedBy: reporter,
+      reportedAt: reportedAt,
+      description: shortDesc
+    }
+  };
+}
+
+// Feature flag: allow non-poaching push sends (dev/test). Default: false -> only /api/poaching sends pushes
+const ALLOW_EXTRA_PUSH = process.env.ENABLE_EXTRA_PUSH === 'true';
+
+/**
+ * Send poaching notification to officers.
+ * This centralizes the logic so notifications are only triggered from the real poaching endpoint by default.
+ * The function attempts sendMulticast, and falls back to per-token sends if needed.
+ */
+async function sendPoachingNotifications(incidentId, incidentData) {
+  try {
+    const officersSnapshot = await db.collection('users').where('role', '==', 'officer').get();
+    const tokens = [];
+    officersSnapshot.forEach(doc => {
+      const u = doc.data();
+      const t = u.pushToken || u.fcmToken || u.notificationToken;
+      if (t) tokens.push(t);
+    });
+
+    const notificationPayload = buildPoachingNotification(incidentId, incidentData);
+
+    if (tokens.length === 0) {
+      // fallback to topic publish (clients must subscribe)
+      try {
+        await admin.messaging().send({
+          topic: 'officers',
+          notification: notificationPayload.notification,
+          data: notificationPayload.data,
+          android: { priority: 'high', notification: { sound: 'default' } },
+          apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+        });
+        console.log('Poaching notification published to topic: officers (no tokens)');
+      } catch (topicErr) {
+        console.debug('Failed to publish poaching notification to topic (no tokens):', topicErr.message || topicErr);
+      }
+      return;
+    }
+
+    // Try multicast first, fall back to single sends if multicast fails
+    const batchSize = 400;
+    const invalidTokensToRemove = new Set();
+    let totalSuccess = 0;
+    let totalFailure = 0;
+
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      const batch = tokens.slice(i, i + batchSize);
+      try {
+        // try multicast
+        const resp = await admin.messaging().sendMulticast({
+          tokens: batch,
+          notification: notificationPayload.notification,
+          data: notificationPayload.data,
+          android: { priority: 'high', notification: { sound: 'default' } },
+          apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+        });
+
+        totalSuccess += resp.successCount || 0;
+        totalFailure += resp.failureCount || 0;
+
+        if (resp.responses && resp.responses.length === batch.length) {
+          resp.responses.forEach((r, idx) => {
+            if (!r.success) {
+              const err = r.error;
+              const code = err && err.errorInfo && err.errorInfo.code ? err.errorInfo.code : (err && err.code) || '';
+              const token = batch[idx];
+              if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') {
+                invalidTokensToRemove.add(token);
+              }
+            }
+          });
+        }
+      } catch (multicastErr) {
+        console.warn('sendMulticast failed; falling back to per-token send for this batch:', multicastErr && multicastErr.message ? multicastErr.message : multicastErr);
+        // Fallback: send one-by-one
+        for (const token of batch) {
+          try {
+            const resp = await admin.messaging().send({
+              token,
+              notification: notificationPayload.notification,
+              data: notificationPayload.data,
+              android: { priority: 'high', notification: { sound: 'default' } },
+              apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+            });
+            if (resp) totalSuccess++;
+          } catch (singleErr) {
+            totalFailure++;
+            const code = singleErr && singleErr.errorInfo && singleErr.errorInfo.code ? singleErr.errorInfo.code : (singleErr && singleErr.code) || '';
+            if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') {
+              invalidTokensToRemove.add(token);
+            }
+          }
+        }
+      }
+    }
+
+    console.log('Poaching notifications result:', totalSuccess, 'successes,', totalFailure, 'failures');
+
+    // Cleanup invalid tokens
+    if (invalidTokensToRemove.size > 0) {
+      try {
+        const usersRef = db.collection('users');
+        const snapshot = await usersRef.get();
+        const updates = [];
+        snapshot.forEach(doc => {
+          const u = doc.data();
+          const userTokens = new Set([u.fcmToken, u.pushToken, u.notificationToken].filter(Boolean));
+          const intersect = [...invalidTokensToRemove].filter(t => userTokens.has(t));
+          if (intersect.length > 0) {
+            const docRef = usersRef.doc(doc.id);
+            const updatePayload = {};
+            if (intersect.includes(u.fcmToken)) updatePayload.fcmToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+            if (intersect.includes(u.pushToken)) updatePayload.pushToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+            if (intersect.includes(u.notificationToken)) updatePayload.notificationToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+            updates.push(docRef.update(updatePayload).catch(e => console.debug('Failed to update user token cleanup', doc.id, e.message || e)));
+          }
+        });
+        await Promise.all(updates);
+        console.log('Removed', invalidTokensToRemove.size, 'invalid tokens from user records');
+      } catch (cleanupErr) {
+        console.error('Failed to cleanup invalid tokens:', cleanupErr);
+      }
+    }
+  } catch (err) {
+    console.error('Error in sendPoachingNotifications:', err);
+    throw err;
+  }
+}
 
 // Authentication middleware
 const authenticateUser = async (req, res, next) => {
@@ -389,12 +560,45 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
     const docRef = await db.collection('poaching_incidents').add(data);
+
+    // Trigger notifications for real poaching submissions only
+    (async () => {
+      try {
+        await sendPoachingNotifications(docRef.id, data);
+      } catch (err) {
+        console.error('Poaching notification error (non-fatal):', err && err.message ? err.message : err);
+      }
+    })();
+
     res.status(201).json({ success: true, data: { id: docRef.id, ...data } });
   } catch (error) {
     console.error('Error adding poaching incident:', error);
     res.status(500).json({ success: false, error: 'Failed to add poaching incident' });
   }
 });
+
+      // Register or update a device push token for the authenticated user
+      app.post('/api/device-token', authenticateUser, async (req, res) => {
+        try {
+          const { token } = req.body;
+          if (!token) {
+            return res.status(400).json({ success: false, error: 'Token is required' });
+          }
+
+          const userRef = db.collection('users').doc(req.user.uid);
+          await userRef.set({
+            fcmToken: token,
+            pushToken: token,
+            notificationToken: token,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          res.json({ success: true });
+        } catch (error) {
+          console.error('Error registering device token:', error);
+          res.status(500).json({ success: false, error: 'Failed to register device token' });
+        }
+      });
 
 // ===== PARK MANAGEMENT ENDPOINTS =====
 
@@ -410,6 +614,452 @@ app.get('/api/parks', optionalAuth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching parks:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch parks' });
+  }
+});
+
+// Debug: list users and their registered device tokens (restricted to researchers and officers)
+app.get('/api/device-tokens', authenticateUser, async (req, res) => {
+  try {
+    const allowed = ['researcher', 'officer'];
+    if (!req.user || !allowed.includes(req.user.role)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const snapshot = await db.collection('users').get();
+    const users = [];
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      users.push({ id: doc.id, email: d.email, role: d.role, fcmToken: d.fcmToken || null, pushToken: d.pushToken || null, notificationToken: d.notificationToken || null });
+    });
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('Error listing device tokens:', error);
+    res.status(500).json({ success: false, error: 'Failed to list device tokens' });
+  }
+});
+
+// Send a test notification. Body: { token?, topic?, title?, body? }
+app.post('/api/device-token/test', authenticateUser, async (req, res) => {
+  try {
+    const { token, topic, title, body } = req.body || {};
+    const notification = {
+      notification: {
+        title: title || 'Test Notification',
+        body: body || 'This is a test notification from Forest API'
+      },
+      data: { test: '1' }
+    };
+
+    if (!ALLOW_EXTRA_PUSH && (token || topic)) {
+      return res.status(403).json({ success: false, error: 'Test push sending is disabled in this environment' });
+    }
+
+    if (token) {
+      // send to single token
+      const resp = await admin.messaging().send({ token, notification: notification.notification, data: notification.data });
+      return res.json({ success: true, providerResponse: resp });
+    }
+
+    if (topic) {
+      const resp = await admin.messaging().send({ topic, notification: notification.notification, data: notification.data });
+      return res.json({ success: true, providerResponse: resp });
+    }
+
+    // otherwise try to send to the caller's registered token
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    if (!userDoc.exists) return res.status(404).json({ success: false, error: 'User not found' });
+    const u = userDoc.data();
+    const userToken = u.fcmToken || u.pushToken || u.notificationToken;
+    if (!userToken) return res.status(400).json({ success: false, error: 'No token found for user' });
+    const resp = await admin.messaging().send({ token: userToken, notification: notification.notification, data: notification.data });
+    return res.json({ success: true, providerResponse: resp });
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    res.status(500).json({ success: false, error: 'Failed to send test notification' });
+  }
+});
+
+// Dev-only: unauthenticated endpoint to publish a test notification to 'officers' topic
+// WARNING: Intended for local development only. It checks NODE_ENV to avoid accidental use in prod.
+app.post('/api/debug/send-officers', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Forbidden in production' });
+    }
+
+    const { title, body } = req.body || {};
+    const notification = {
+      notification: {
+        title: title || 'Dev Test: Poaching Alert',
+        body: body || 'This is a development test message to officers topic'
+      },
+      data: { dev: '1', type: 'poaching_test' }
+    };
+
+    if (!ALLOW_EXTRA_PUSH) {
+      return res.status(403).json({ success: false, error: 'Dev topic sends disabled in this environment' });
+    }
+
+    await admin.messaging().send({ topic: 'officers', notification: notification.notification, data: notification.data });
+    console.log('Dev: published test notification to topic officers');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Dev: failed to publish to officers topic', error);
+    res.status(500).json({ success: false, error: 'Failed to send dev notification' });
+  }
+});
+
+// Dev-only: list officers and their registered tokens (unauthenticated)
+// WARNING: development helper only. Disabled in production.
+app.get('/api/debug/officer-tokens', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Forbidden in production' });
+    }
+
+    if (!ALLOW_EXTRA_PUSH) {
+      return res.status(403).json({ success: false, error: 'Dev create-poaching notifications are disabled in this environment' });
+    }
+    const snapshot = await db.collection('users').where('role', '==', 'officer').get();
+    const users = [];
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      users.push({ id: doc.id, email: d.email || null, role: d.role || null, fcmToken: d.fcmToken || null, pushToken: d.pushToken || null, notificationToken: d.notificationToken || null, updatedAt: d.updatedAt || null });
+    });
+    res.json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    console.error('Error listing officer tokens:', error);
+    res.status(500).json({ success: false, error: 'Failed to list officer tokens' });
+  }
+});
+
+// Dev-only: list recent push receipts written by clients (help verify delivery)
+app.get('/api/debug/push-receipts', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Forbidden in production' });
+    }
+    const limit = parseInt(req.query.limit || '50', 10);
+    const snapshot = await db.collection('push_receipts').orderBy('receivedAt', 'desc').limit(limit).get();
+    const items = [];
+    snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, count: items.length, data: items });
+  } catch (error) {
+    console.error('Error listing push receipts:', error);
+    res.status(500).json({ success: false, error: 'Failed to list push receipts' });
+  }
+});
+
+// Dev -> Production (guarded) : allow explicit dev-trigger to send to real officers
+// This endpoint is intentionally gated by two safeguards:
+// 1. process.env.ENABLE_DEV_TO_PROD must be set to 'true'
+// 2. Caller must include header 'x-dev-secret' matching process.env.DEV_SEND_SECRET
+// Use this only when you intentionally want to send a development-triggered notification
+// to the real 'officers' topic/devices. Keep DEV_SEND_SECRET private.
+app.post('/api/debug/send-officers-real', async (req, res) => {
+  try {
+    if (process.env.ENABLE_DEV_TO_PROD !== 'true') {
+      return res.status(403).json({ success: false, error: 'Dev->Prod sends not enabled' });
+    }
+
+    const secret = req.headers['x-dev-secret'] || req.headers['X-Dev-Secret'];
+    if (!secret || secret !== process.env.DEV_SEND_SECRET) {
+      return res.status(401).json({ success: false, error: 'Invalid dev secret' });
+    }
+
+    const { title, body } = req.body || {};
+    const notification = {
+      notification: {
+        title: title || 'Dev->Prod: Poaching Alert',
+        body: body || 'This is a development-triggered alert to officers topic'
+      },
+      data: { dev: '1', type: 'poaching_test' }
+    };
+
+    await admin.messaging().send({
+      topic: 'officers',
+      notification: notification.notification,
+      data: notification.data,
+      android: { priority: 'high', notification: { sound: 'default' } },
+      apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+    });
+
+    console.log('Dev->Prod: published test notification to topic officers');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Dev->Prod: failed to publish to officers topic', error);
+    res.status(500).json({ success: false, error: 'Failed to send dev->prod notification' });
+  }
+});
+
+// Dev-only: create a poaching incident and run notification flow (guarded)
+app.post('/api/debug/create-poaching', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Forbidden in production' });
+    }
+
+    if (!ALLOW_EXTRA_PUSH) {
+      return res.status(403).json({ success: false, error: 'Dev poaching endpoint push sending disabled in this environment' });
+    }
+
+    const secret = req.headers['x-dev-secret'] || req.headers['X-Dev-Secret'];
+    if (!secret || secret !== process.env.DEV_SEND_SECRET) {
+      return res.status(401).json({ success: false, error: 'Invalid dev secret' });
+    }
+
+    // Accept minimal payload; provide sensible defaults for dev
+    const { species = 'Elephant', location = 'Sector A', date = new Date().toISOString(), severity = 'High', description = 'Automated dev report', reportedBy = 'Dev', reportedByUserId = 'dev' } = req.body || {};
+
+    const data = {
+      species,
+      location,
+      status: 'pending',
+      date,
+      severity,
+      description,
+      evidence: [],
+      reportedBy,
+      reportedByUserId,
+      reportedByRole: 'developer',
+      reportedAt: new Date().toISOString(),
+      createdBy: { uid: reportedByUserId, displayName: reportedBy, email: '', role: 'developer' },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    const docRef = await db.collection('poaching_incidents').add(data);
+
+    // Reuse notification flow: collect officer tokens and send multicast, fallback to topic
+    (async () => {
+      try {
+        const officersSnapshot = await db.collection('users').where('role', '==', 'officer').get();
+        const tokens = [];
+        officersSnapshot.forEach(doc => {
+          const u = doc.data();
+          const t = u.pushToken || u.fcmToken || u.notificationToken;
+          if (t) tokens.push(t);
+        });
+
+        const notificationPayload = buildPoachingNotification(docRef.id, data, { dev: true });
+
+        if (tokens.length > 0) {
+          const batchSize = 400;
+          let totalSuccess = 0;
+          let totalFailure = 0;
+          const invalidTokensToRemove = [];
+
+          for (let i = 0; i < tokens.length; i += batchSize) {
+            const batch = tokens.slice(i, i + batchSize);
+            try {
+              const resp = await admin.messaging().sendMulticast({
+                tokens: batch,
+                notification: notificationPayload.notification,
+                data: notificationPayload.data,
+                android: { priority: 'high', notification: { sound: 'default' } },
+                apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+              });
+              totalSuccess += resp.successCount || 0;
+              totalFailure += resp.failureCount || 0;
+
+              if (resp.responses && resp.responses.length === batch.length) {
+                resp.responses.forEach((r, idx) => {
+                  if (!r.success) {
+                    const err = r.error;
+                    const code = err && err.errorInfo && err.errorInfo.code ? err.errorInfo.code : (err && err.code) || '';
+                    const token = batch[idx];
+                    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') {
+                      invalidTokensToRemove.push(token);
+                    }
+                  }
+                });
+              }
+            } catch (batchErr) {
+              console.error('FCM batch send failed for a batch:', batchErr);
+            }
+          }
+
+          console.log('Dev poaching notifications sent:', totalSuccess, 'successes,', totalFailure, 'failures');
+
+          if (invalidTokensToRemove.length > 0) {
+            try {
+              const usersRef = db.collection('users');
+              const snapshot = await usersRef.get();
+              const updates = [];
+              snapshot.forEach(doc => {
+                const u = doc.data();
+                const userTokens = new Set([u.fcmToken, u.pushToken, u.notificationToken].filter(Boolean));
+                const intersect = invalidTokensToRemove.filter(t => userTokens.has(t));
+                if (intersect.length > 0) {
+                  const docRef = usersRef.doc(doc.id);
+                  const updatePayload = {};
+                  if (intersect.includes(u.fcmToken)) updatePayload.fcmToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+                  if (intersect.includes(u.pushToken)) updatePayload.pushToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+                  if (intersect.includes(u.notificationToken)) updatePayload.notificationToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+                  updates.push(docRef.update(updatePayload).catch(e => console.debug('Failed to update user token cleanup', doc.id, e.message || e)));
+                }
+              });
+              await Promise.all(updates);
+              console.log('Removed', invalidTokensToRemove.length, 'invalid tokens from user records');
+            } catch (cleanupErr) {
+              console.error('Failed to cleanup invalid tokens:', cleanupErr);
+            }
+          }
+        } else {
+          try {
+            await admin.messaging().send({
+              topic: 'officers',
+              notification: notificationPayload.notification,
+              data: notificationPayload.data,
+              android: { priority: 'high', notification: { sound: 'default' } },
+              apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+            });
+            console.log('Dev poaching notification published to topic: officers');
+          } catch (topicErr) {
+            console.debug('Dev: failed to publish to topic:', topicErr.message || topicErr);
+          }
+        }
+      } catch (err) {
+        console.error('Error sending dev poaching notifications:', err);
+      }
+    })();
+
+    res.status(201).json({ success: true, data: { id: docRef.id, ...data } });
+  } catch (error) {
+    console.error('Error creating dev poaching incident:', error);
+    res.status(500).json({ success: false, error: 'Failed to create dev poaching incident' });
+  }
+});
+
+// Dev-only: create a poaching incident and trigger full notification flow (multicast + topic fallback)
+// WARNING: local development only. Disabled in production.
+app.post('/api/debug/poaching', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Forbidden in production' });
+    }
+
+    const { species, location, date, severity, description, evidence } = req.body || {};
+    if (!species || !location || !date || !severity) {
+      return res.status(400).json({ success: false, error: 'Missing required fields (species, location, date, severity)' });
+    }
+
+    const data = {
+      species,
+      location,
+      status: 'pending',
+      date,
+      severity,
+      description: description || '',
+      evidence: Array.isArray(evidence) ? evidence : [],
+      reportedBy: 'dev-simulated',
+      reportedByUserId: 'dev-simulated',
+      reportedByRole: 'researcher',
+      reportedAt: new Date().toISOString(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    const docRef = await db.collection('poaching_incidents').add(data);
+
+    // Reuse the server's notification logic: collect officer tokens and send multicast, else topic
+    (async () => {
+      try {
+        const officersSnapshot = await db.collection('users').where('role', '==', 'officer').get();
+        const tokens = [];
+        officersSnapshot.forEach(doc => {
+          const u = doc.data();
+          const t = u.pushToken || u.fcmToken || u.notificationToken;
+          if (t) tokens.push(t);
+        });
+
+        const notificationPayload = buildPoachingNotification(docRef.id, data, { dev: true });
+
+        if (tokens.length > 0) {
+          const batchSize = 400;
+          let totalSuccess = 0;
+          let totalFailure = 0;
+          const invalidTokensToRemove = [];
+
+          for (let i = 0; i < tokens.length; i += batchSize) {
+            const batch = tokens.slice(i, i + batchSize);
+            try {
+              const resp = await admin.messaging().sendMulticast({
+                tokens: batch,
+                notification: notificationPayload.notification,
+                data: notificationPayload.data,
+                android: { priority: 'high', notification: { sound: 'default' } },
+                apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+              });
+              totalSuccess += resp.successCount || 0;
+              totalFailure += resp.failureCount || 0;
+
+              if (resp.responses && resp.responses.length === batch.length) {
+                resp.responses.forEach((r, idx) => {
+                  if (!r.success) {
+                    const err = r.error;
+                    const code = err && err.errorInfo && err.errorInfo.code ? err.errorInfo.code : (err && err.code) || '';
+                    const token = batch[idx];
+                    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') {
+                      invalidTokensToRemove.push(token);
+                    }
+                  }
+                });
+              }
+            } catch (batchErr) {
+              console.error('FCM batch send failed for a batch (dev):', batchErr);
+            }
+          }
+
+          console.log('Dev poaching notifications sent:', totalSuccess, 'successes,', totalFailure, 'failures');
+
+          if (invalidTokensToRemove.length > 0) {
+            try {
+              const usersRef = db.collection('users');
+              const snapshot = await usersRef.get();
+              const updates = [];
+              snapshot.forEach(doc => {
+                const u = doc.data();
+                const userTokens = new Set([u.fcmToken, u.pushToken, u.notificationToken].filter(Boolean));
+                const intersect = invalidTokensToRemove.filter(t => userTokens.has(t));
+                if (intersect.length > 0) {
+                  const docRef = usersRef.doc(doc.id);
+                  const updatePayload = {};
+                  if (intersect.includes(u.fcmToken)) updatePayload.fcmToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+                  if (intersect.includes(u.pushToken)) updatePayload.pushToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+                  if (intersect.includes(u.notificationToken)) updatePayload.notificationToken = admin.firestore.FieldValue.delete ? admin.firestore.FieldValue.delete() : null;
+                  updates.push(docRef.update(updatePayload).catch(e => console.debug('Failed to update user token cleanup', doc.id, e.message || e)));
+                }
+              });
+              await Promise.all(updates);
+              console.log('Dev: Removed', invalidTokensToRemove.length, 'invalid tokens from user records');
+            } catch (cleanupErr) {
+              console.error('Dev: Failed to cleanup invalid tokens:', cleanupErr);
+            }
+          }
+        } else {
+          try {
+            await admin.messaging().send({
+              topic: 'officers',
+              notification: notificationPayload.notification,
+              data: notificationPayload.data,
+              android: { priority: 'high', notification: { sound: 'default' } },
+              apns: { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+            });
+            console.log('Dev poaching notification published to topic: officers');
+          } catch (topicErr) {
+            console.debug('Dev: failed to publish to topic:', topicErr.message || topicErr);
+          }
+        }
+      } catch (err) {
+        console.error('Dev: Error sending poaching notifications:', err);
+      }
+    })();
+
+    return res.json({ success: true, id: docRef.id });
+  } catch (error) {
+    console.error('Dev: error creating poaching incident:', error);
+    return res.status(500).json({ success: false, error: 'Failed to create dev poaching incident' });
   }
 });
 

@@ -166,6 +166,7 @@ const AppNavigator = () => {
           options={{ headerShown: false }}
         />
       )}
+      {/* DebugPush screen removed for production */}
       <Stack.Screen 
         name="SafariStart" 
         component={SafariStartScreen} 

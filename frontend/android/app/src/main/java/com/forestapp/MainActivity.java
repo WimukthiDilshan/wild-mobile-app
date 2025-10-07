@@ -1,6 +1,7 @@
 package com.forestapp;
 
 import com.facebook.react.ReactActivity;
+import android.os.Bundle;
 import com.facebook.react.ReactActivityDelegate;
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint;
 import com.facebook.react.defaults.DefaultReactActivityDelegate;
@@ -28,5 +29,12 @@ public class MainActivity extends ReactActivity {
         getMainComponentName(),
         // If you opted-in for the New Architecture, we enable the Fabric Renderer.
         DefaultNewArchitectureEntryPoint.getFabricEnabled());
+  }
+
+  // Workaround for react-native-screens crash on fragment restoration.
+  // Always pass null to super.onCreate to avoid fragment state restoration.
+  @Override
+  protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(null);
   }
 }
