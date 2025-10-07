@@ -123,7 +123,7 @@ const MainScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('AddPoaching')}
                 activeOpacity={0.8}>
                 <Text style={styles.buttonIcon}>🚨</Text>
-                <Text style={styles.buttonTitle}>Add Poaching</Text>
+                <Text style={styles.buttonTitle}>Report Poaching</Text>
                 <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
               </TouchableOpacity>
             )}
@@ -156,7 +156,7 @@ const MainScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('PreferenceManagement')}
                 activeOpacity={0.8}>
                 <Text style={styles.buttonIcon}>🦁</Text>
-                <Text style={styles.buttonTitle}>Get PReferences </Text>
+                <Text style={styles.buttonTitle}>Get Preferences </Text>
                 <Text style={styles.buttonSubtitle}>Add new wildlife data</Text>
               </TouchableOpacity>
             )}

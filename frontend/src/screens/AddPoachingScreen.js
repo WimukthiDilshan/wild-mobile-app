@@ -290,7 +290,7 @@ const AddPoachingScreen = ({ navigation }) => {
                     formData.severity === option && styles.selectedSeverity,
                     { backgroundColor: 
                       option === 'High' ? '#F44336' : 
-                      option === 'Medium' ? '#FF9800' : '#FFC107' 
+                      option === 'Medium' ? '#FF9800' : '#4CAF50' 
                     }
                   ]}
                   onPress={() => handleInputChange('severity', option)}>

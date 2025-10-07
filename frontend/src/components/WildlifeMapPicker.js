@@ -11,6 +11,9 @@ import {
   Animated,
   Dimensions,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import LocationService from '../services/LocationService';
@@ -435,36 +438,51 @@ const WildlifeMapPicker = ({ visible, onClose, onLocationSelect, initialLocation
 
           {/* Name Input Modal */}
           {showNameInput && (
-            <View style={styles.nameInputOverlay}>
-              <View style={styles.nameInputContainer}>
-                <Text style={styles.nameInputTitle}>📍 Name This Location</Text>
-                <Text style={styles.selectedLocationText}>
-                  {selectedLocation?.formattedCoords}
-                </Text>
-                <TextInput
-                  style={styles.nameInput}
-                  placeholder="Enter location name..."
-                  placeholderTextColor="#999"
-                  value={customLocationName}
-                  onChangeText={setCustomLocationName}
-                  autoFocus={true}
-                />
-                <View style={styles.nameInputButtons}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => setShowNameInput(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={handleSaveLocation}
-                  >
-                    <Text style={styles.saveButtonText}>Save Location</Text>
-                  </TouchableOpacity>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
+              style={styles.nameInputOverlay}
+            >
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                <View style={styles.nameInputContainer}>
+                  <Text style={styles.nameInputTitle}>📍 Name This Location</Text>
+                  <Text style={styles.selectedLocationText}>
+                    {selectedLocation?.formattedCoords}
+                  </Text>
+                  <TextInput
+                    style={styles.nameInput}
+                    placeholder="Enter location name..."
+                    placeholderTextColor="#666"
+                    value={customLocationName}
+                    onChangeText={setCustomLocationName}
+                    autoFocus={true}
+                    returnKeyType="done"
+                    blurOnSubmit={true}
+                    selectionColor="#2E7D32"
+                  />
+                  <View style={styles.nameInputButtons}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setShowNameInput(false);
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        handleSaveLocation();
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>Save Location</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
           )}
         </Animated.View>
       </Animated.View>
@@ -791,6 +809,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 20,
+    color: '#333',
   },
   nameInputButtons: {
     flexDirection: 'row',

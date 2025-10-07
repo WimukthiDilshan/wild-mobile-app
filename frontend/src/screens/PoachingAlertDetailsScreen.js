@@ -135,6 +135,17 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
   const { userData } = useAuth();
   const [reporterUser, setReporterUser] = useState(null);
 
+  // determine whether the current user is an officer (several project schemas exist)
+  const isOfficerUser = (ud) => {
+    if (!ud) return false;
+    if (ud.isOfficer || ud.is_officer) return true;
+    if (typeof ud.role === 'string' && ud.role.toLowerCase() === 'officer') return true;
+    if (Array.isArray(ud.roles) && ud.roles.some(r => String(r).toLowerCase() === 'officer')) return true;
+    if (typeof ud.roles === 'string' && ud.roles.toLowerCase().includes('officer')) return true;
+    return false;
+  };
+  const isOfficer = isOfficerUser(userData);
+
   // Fetch latest incident from server (to get persisted evidence URLs etc.)
   React.useEffect(() => {
     let cancelled = false;
@@ -246,11 +257,13 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.value}>{`${statusSymbol(currentIncident.status || currentIncident.state || currentIncident.investigationStatus)}  ${(currentIncident.status || currentIncident.state || currentIncident.investigationStatus || 'pending').toUpperCase()}`}</Text>
           </View>
         </View>
-        <View style={styles.actions}>
-          <TouchableOpacity style={[styles.actionButton, styles.change]} onPress={() => setModalVisible(true)}>
-            <Text style={styles.actionText}>Change Status</Text>
-          </TouchableOpacity>
-        </View>
+        {isOfficer && (
+          <View style={styles.actions}>
+            <TouchableOpacity style={[styles.actionButton, styles.change]} onPress={() => setModalVisible(true)}>
+              <Text style={styles.actionText}>Change Status</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* severity is shown inline next to Status (avoid duplicate display) */}
@@ -308,8 +321,8 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
         <Text style={styles.value}>{incident.reportedBy || incident.reporter || 'Unknown'}</Text>
       </View>
 
-      {/* Call Reporter button - render if phone available */}
-      {(() => {
+      {/* Call Reporter button - render if phone available and user is an officer */}
+      {isOfficer && (() => {
         const reporterPhone = (reporterUser && reporterUser.phoneNumber) || findReporterPhone(currentIncident) || findReporterPhone(incident) || (userData && userData.phoneNumber);
         if (!reporterPhone) {
           console.debug('PoachingAlertDetails: no reporter phone found on incident', { id: incident.id });

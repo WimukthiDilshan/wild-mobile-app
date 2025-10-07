@@ -16,7 +16,7 @@ import AnimalDetailsScreen from './src/screens/AnimalDetailsScreen';
 import AnimalAnalyticsScreen from './src/screens/AnimalAnalyticsScreen';
 import InsertAnimalsScreen from './src/screens/InsertAnimalsScreen';
 import PoachingAnalyticsScreen from './src/screens/PoachingAnalyticsScreen';
-import AddPoachingScreen from './src/screens/AddPoachingScreen';
+import PoachingTabsScreen from './src/screens/PoachingTabsScreen';
 import PoachingAlertsScreen from './src/screens/PoachingAlertsScreen';
 import PoachingAlertDetailsScreen from './src/screens/PoachingAlertDetailsScreen';
 import ParkManagementScreen from './src/screens/ParkManagementScreen';
@@ -141,7 +141,7 @@ const AppNavigator = () => {
       {hasPermission('canAddPoaching') && (
         <Stack.Screen 
           name="AddPoaching" 
-          component={AddPoachingScreen} 
+          component={PoachingTabsScreen} 
           options={{ title: '🚨 Report Poaching' }}
         />
       )}
