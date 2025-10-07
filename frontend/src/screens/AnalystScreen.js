@@ -18,9 +18,48 @@ import {
 import RNFS from 'react-native-fs';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
+import TemporalAnalysisService from '../services/TemporalAnalysisService';
 import { useAuth } from '../contexts/AuthContext';
 
 const screenWidth = Dimensions.get('window').width;
+
+// Scientific Names Mapping for Wildlife Species
+const SPECIES_SCIENTIFIC_NAMES = {
+  'Tiger': 'Panthera tigris',
+  'Elephant': 'Elephas maximus',
+  'Leopard': 'Panthera pardus',
+  'Orangutan': 'Pongo pygmaeus',
+  'Rhinoceros': 'Rhinoceros unicornis',
+  'Giant Panda': 'Ailuropoda melanoleuca',
+  'Polar Bear': 'Ursus maritimus',
+  'Mountain Gorilla': 'Gorilla beringei beringei',
+  'Snow Leopard': 'Panthera uncia',
+  'Chimpanzee': 'Pan troglodytes',
+  'Wolf': 'Canis lupus',
+  'Lion': 'Panthera leo',
+  'Giraffe': 'Giraffa camelopardalis',
+  'Zebra': 'Equus quagga',
+  'Cheetah': 'Acinonyx jubatus',
+  'Jaguar': 'Panthera onca',
+  'Hippopotamus': 'Hippopotamus amphibius',
+  'Crocodile': 'Crocodylus niloticus',
+  'Koala': 'Phascolarctos cinereus',
+  'Kangaroo': 'Macropus giganteus'
+};
+
+// Helper function to get scientific name
+const getScientificName = (commonName) => {
+  return SPECIES_SCIENTIFIC_NAMES[commonName] || 'Unknown';
+};
+
+// Helper function to format species display name
+const formatSpeciesName = (commonName, showScientific = true) => {
+  const scientific = getScientificName(commonName);
+  if (showScientific && scientific !== 'Unknown') {
+    return `${commonName}\n(${scientific})`;
+  }
+  return commonName;
+};
 
 const AnalystScreen = ({ navigation }) => {
   const { user, rolePermissions } = useAuth();
@@ -31,6 +70,11 @@ const AnalystScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [exportLoading, setExportLoading] = useState(false);
+  
+  // Temporal Analysis States
+  const [seasonalAnalysis, setSeasonalAnalysis] = useState(null);
+  const [temporalInsights, setTemporalInsights] = useState([]);
+  const [migrationPatterns, setMigrationPatterns] = useState({});
 
   // Check if user has permission to view analytics
   if (!rolePermissions?.canViewAnalytics) {
@@ -82,6 +126,17 @@ const AnalystScreen = ({ navigation }) => {
       setAnalytics(analyticsData);
       setAnimals(animalsData);
       setPoachingIncidents(incidentsData || []);
+
+      // Generate temporal analysis from existing data
+      if (animalsData && animalsData.length > 0) {
+        const seasonalData = TemporalAnalysisService.generateSeasonalAnalysis(animalsData);
+        const insights = TemporalAnalysisService.generateTemporalInsights(animalsData);
+        const patterns = TemporalAnalysisService.analyzeMigrationPatterns(animalsData);
+        
+        setSeasonalAnalysis(seasonalData);
+        setTemporalInsights(insights);
+        setMigrationPatterns(patterns);
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to load analytics data');
       console.error('Error loading analytics:', error);
@@ -175,7 +230,7 @@ const AnalystScreen = ({ navigation }) => {
 
   const generateExcelData = () => {
     // Create properly formatted CSV data for Excel
-    const headers = ['Animal Name', 'Species Count', 'Location', 'Habitat', 'Conservation Status', 'Date Added', 'Added By'];
+    const headers = ['Animal Name', 'Scientific Name', 'Species Count', 'Location', 'Habitat', 'Conservation Status', 'Date Added', 'Added By'];
     
     // Function to properly escape CSV values
     const escapeCSV = (value) => {
@@ -193,6 +248,7 @@ const AnalystScreen = ({ navigation }) => {
       '\uFEFF' + headers.map(escapeCSV).join(','),
       ...animals.map(animal => [
         animal.name || 'Unknown',
+        getScientificName(animal.name || 'Unknown'),
         animal.count || 0,
         animal.location || 'Unknown Location',
         animal.habitat || 'Unknown Habitat',
@@ -247,14 +303,15 @@ const AnalystScreen = ({ navigation }) => {
 
     const speciesHeader = [
       '',
-      ['Species Statistics', '', ''].map(escapeCSV).join(','),
-      ['Species Name', 'Total Count', 'Locations Found'].map(escapeCSV).join(',')
+      ['Species Statistics', '', '', ''].map(escapeCSV).join(','),
+      ['Species Name', 'Scientific Name', 'Total Count', 'Locations Found'].map(escapeCSV).join(',')
     ];
 
     const speciesSection = analytics?.speciesStats
       ? Object.entries(analytics.speciesStats).map(([species, data]) => 
           [
-            species, 
+            species,
+            getScientificName(species),
             data.count || 0, 
             data.locations?.join('; ') || 'Unknown'
           ].map(escapeCSV).join(',')
@@ -655,6 +712,7 @@ const AnalystScreen = ({ navigation }) => {
             .map(([species, data], index) => (
             <View key={species} style={styles.quickStatCard}>
               <Text style={styles.quickStatSpecies}>{species}</Text>
+              <Text style={styles.quickStatScientific}>{getScientificName(species)}</Text>
               <Text style={styles.quickStatCount}>{data.count}</Text>
               <Text style={styles.quickStatLabel}>total</Text>
             </View>
@@ -663,6 +721,196 @@ const AnalystScreen = ({ navigation }) => {
       </View>
     </View>
   );
+
+  // Helper function for monthly chart data
+  const getMonthlyCount = (animals, month) => {
+    return animals.filter(animal => {
+      const animalMonth = new Date(animal.addedAt).getMonth() + 1;
+      return animalMonth === month;
+    }).reduce((sum, animal) => sum + (animal.count || 1), 0);
+  };
+
+  const getAllMonthlyCounts = (animals) => {
+    return Array.from({ length: 12 }, (_, i) => getMonthlyCount(animals, i + 1));
+  };
+
+  // Temporal Analysis Rendering
+  const renderTemporalAnalysis = () => {
+    if (!seasonalAnalysis || !temporalInsights.length) {
+      return (
+        <View style={styles.temporalContainer}>
+          <Text style={styles.sectionTitle}>📅 Seasonal Analysis</Text>
+          <View style={styles.noDataCard}>
+            <Text style={styles.noDataText}>No temporal data available yet.</Text>
+            <Text style={styles.noDataSubtext}>Add more animal sightings to see seasonal patterns!</Text>
+          </View>
+        </View>
+      );
+    }
+
+    const { seasonalStats } = seasonalAnalysis;
+
+    return (
+      <ScrollView style={styles.temporalContainer}>
+        {/* Current Season Insights */}
+        <View style={styles.currentSeasonCard}>
+          <Text style={styles.sectionTitle}>🌟 Current Season Insights</Text>
+          <Text style={styles.currentSeasonText}>
+            {TemporalAnalysisService.getSeason(new Date()).charAt(0).toUpperCase() + 
+             TemporalAnalysisService.getSeason(new Date()).slice(1)} {new Date().getFullYear()}
+          </Text>
+          
+          <View style={styles.insightsGrid}>
+            {temporalInsights.slice(0, 4).map((insight, index) => (
+              <View key={index} style={[
+                styles.insightCard,
+                { backgroundColor: insight.alertLevel === 'Critical' ? '#ffebee' : 
+                                 insight.alertLevel === 'High' ? '#fff3e0' :
+                                 insight.alertLevel === 'Medium' ? '#fff8e1' : '#f1f8e9' }
+              ]}>
+                <Text style={styles.insightSpecies}>{insight.species}</Text>
+                <Text style={[styles.insightBehavior, { color: '#666' }]}>
+                  {insight.prediction.primaryBehavior.replace(/_/g, ' ')}
+                </Text>
+                <Text style={styles.insightActivity}>
+                  Activity: {insight.prediction.activityLevel}
+                </Text>
+                {insight.prediction.breedingSeason && (
+                  <View style={styles.breedingBadge}>
+                    <Text style={styles.breedingText}>🍼 Breeding</Text>
+                  </View>
+                )}
+                <View style={[styles.alertBadge, {
+                  backgroundColor: insight.alertLevel === 'Critical' ? '#f44336' :
+                                 insight.alertLevel === 'High' ? '#ff9800' :
+                                 insight.alertLevel === 'Medium' ? '#ffc107' : '#4caf50'
+                }]}>
+                  <Text style={styles.alertText}>{insight.alertLevel}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Seasonal Distribution Chart */}
+        <View style={styles.chartCard}>
+          <Text style={styles.chartTitle}>📊 Population by Season</Text>
+          <BarChart
+            data={{
+              labels: ['Spring', 'Summer', 'Autumn', 'Winter'],
+              datasets: [{
+                data: [
+                  seasonalStats.spring.total || 0,
+                  seasonalStats.summer.total || 0,
+                  seasonalStats.autumn.total || 0,
+                  seasonalStats.winter.total || 0
+                ]
+              }]
+            }}
+            width={screenWidth - 60}
+            height={220}
+            chartConfig={{
+              backgroundColor: '#ffffff',
+              backgroundGradientFrom: '#ffffff',
+              backgroundGradientTo: '#ffffff',
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+              style: { borderRadius: 16 }
+            }}
+            style={{ marginVertical: 8, borderRadius: 16 }}
+          />
+        </View>
+
+        {/* Monthly Activity Heatmap */}
+        <View style={styles.chartCard}>
+          <Text style={styles.chartTitle}>🔥 Monthly Activity Heatmap</Text>
+          <View style={styles.heatmapContainer}>
+            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, index) => {
+                const monthlyCount = getMonthlyCount(animals, index + 1);
+                const maxCount = Math.max(...getAllMonthlyCounts(animals), 1);
+                const intensity = monthlyCount / maxCount;
+                
+                return (
+                  <View key={month} style={[
+                    styles.heatmapCell,
+                    { backgroundColor: `rgba(76, 175, 80, ${Math.max(intensity, 0.1)})` }
+                  ]}>
+                    <Text style={styles.heatmapLabel}>{month}</Text>
+                    <Text style={styles.heatmapValue}>{monthlyCount}</Text>
+                  </View>
+                );
+            })}
+          </View>
+        </View>
+
+        {/* Species Predictions */}
+        <View style={styles.predictionsCard}>
+          <Text style={styles.sectionTitle}>🔮 Species Behavior Predictions</Text>
+          {temporalInsights.map((insight, index) => (
+            <View key={index} style={styles.predictionItem}>
+              <View style={styles.predictionHeader}>
+                <Text style={styles.predictionSpecies}>{insight.species}</Text>
+                <Text style={styles.predictionScientific}>
+                  ({getScientificName(insight.species)})
+                </Text>
+              </View>
+              
+              <View style={styles.predictionContent}>
+                <View style={styles.predictionRow}>
+                  <Text style={styles.predictionLabel}>Current Behavior:</Text>
+                  <Text style={styles.predictionValue}>
+                    {insight.prediction.primaryBehavior.replace(/_/g, ' ')}
+                  </Text>
+                </View>
+                
+                <View style={styles.predictionRow}>
+                  <Text style={styles.predictionLabel}>Activity Level:</Text>
+                  <Text style={[styles.predictionValue, {
+                    color: insight.prediction.activityLevel === 'High' ? '#4CAF50' :
+                           insight.prediction.activityLevel === 'Low' ? '#FF9800' : '#666'
+                  }]}>
+                    {insight.prediction.activityLevel}
+                  </Text>
+                </View>
+
+                <View style={styles.predictionRow}>
+                  <Text style={styles.predictionLabel}>Population Trend:</Text>
+                  <Text style={[styles.predictionValue, {
+                    color: insight.trend === 'Increasing' ? '#4CAF50' :
+                           insight.trend === 'Decreasing' ? '#F44336' : '#666'
+                  }]}>
+                    {insight.trend}
+                  </Text>
+                </View>
+
+                <Text style={styles.recommendationText}>
+                  💡 {insight.prediction.recommendation}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Migration Patterns */}
+        <View style={styles.migrationCard}>
+          <Text style={styles.sectionTitle}>🗺️ Movement Patterns</Text>
+          {Object.keys(migrationPatterns).slice(0, 3).map((species, index) => (
+            <View key={index} style={styles.migrationItem}>
+              <Text style={styles.migrationSpecies}>{species}</Text>
+              <Text style={styles.migrationType}>
+                Type: {migrationPatterns[species].migrationTendency}
+              </Text>
+              <Text style={styles.migrationLocations}>
+                Locations: {Object.keys(migrationPatterns[species].locations).join(', ')}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  };
 
   // Search Functions
   const handleSearch = () => {
@@ -676,8 +924,10 @@ const AnalystScreen = ({ navigation }) => {
 
     // Search through animals
     animals.forEach(animal => {
+      const scientificName = getScientificName(animal.name || '');
       if (
         (animal.name && animal.name.toLowerCase().includes(query)) ||
+        (scientificName && scientificName.toLowerCase().includes(query)) ||
         (animal.location && animal.location.toLowerCase().includes(query)) ||
         (animal.habitat && animal.habitat.toLowerCase().includes(query)) ||
         (animal.status && animal.status.toLowerCase().includes(query))
@@ -686,7 +936,7 @@ const AnalystScreen = ({ navigation }) => {
           type: 'animal',
           id: animal.name || 'unknown',
           title: animal.name || 'Unknown Animal',
-          subtitle: `${animal.location || 'Unknown'} • ${animal.status || 'Unknown'}`,
+          subtitle: `${scientificName} • ${animal.location || 'Unknown'} • ${animal.status || 'Unknown'}`,
           data: animal,
           icon: '🦁'
         });
@@ -872,6 +1122,13 @@ const AnalystScreen = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[styles.tab, activeTab === 'temporal' && styles.activeTab]}
+          onPress={() => setActiveTab('temporal')}>
+          <Text style={[styles.tabText, activeTab === 'temporal' && styles.activeTabText]}>
+            📅 Seasonal
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'search' && styles.activeTab]}
           onPress={() => setActiveTab('search')}>
           <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText]}>
@@ -895,6 +1152,7 @@ const AnalystScreen = ({ navigation }) => {
           }>
           
           {activeTab === 'overview' && renderOverview()}
+          {activeTab === 'temporal' && renderTemporalAnalysis()}
           {activeTab === 'animals' && renderAnimalsData()}
 
           {/* Footer */}
@@ -1303,6 +1561,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
+    marginBottom: 2,
+  },
+  quickStatScientific: {
+    fontSize: 9,
+    fontStyle: 'italic',
+    color: '#666',
+    textAlign: 'center',
     marginBottom: 4,
   },
   quickStatCount: {
@@ -1596,6 +1861,237 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     flex: 1,
+  },
+
+  // Temporal Analysis Styles
+  temporalContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  currentSeasonCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  currentSeasonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  insightsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  insightCard: {
+    width: '48%',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  insightSpecies: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  insightBehavior: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    textTransform: 'capitalize',
+  },
+  insightActivity: {
+    fontSize: 11,
+    color: '#888',
+    marginBottom: 8,
+  },
+  breedingBadge: {
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  breedingText: {
+    fontSize: 10,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  alertBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-end',
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  alertText: {
+    fontSize: 9,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  heatmapContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+  },
+  heatmapCell: {
+    width: '15%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.2)',
+  },
+  heatmapLabel: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  heatmapValue: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  predictionsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  predictionItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 16,
+    marginBottom: 16,
+  },
+  predictionHeader: {
+    marginBottom: 12,
+  },
+  predictionSpecies: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  predictionScientific: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    color: '#666',
+    marginTop: 2,
+  },
+  predictionContent: {
+    backgroundColor: '#f9f9f9',
+    padding: 12,
+    borderRadius: 8,
+  },
+  predictionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  predictionLabel: {
+    fontSize: 13,
+    color: '#666',
+    flex: 1,
+  },
+  predictionValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    textAlign: 'right',
+    textTransform: 'capitalize',
+  },
+  recommendationText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    backgroundColor: '#E8F5E8',
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  migrationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  migrationItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  migrationSpecies: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  migrationType: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+    textTransform: 'capitalize',
+  },
+  migrationLocations: {
+    fontSize: 12,
+    color: '#888',
+  },
+  noDataCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
 });
 
