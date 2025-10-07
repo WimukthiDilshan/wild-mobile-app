@@ -130,6 +130,7 @@ const AppNavigator = () => {
           options={{ title: '⚠️ Poaching Analytics' }}
         />
       )}
+      
       {userData?.role === USER_ROLES.OFFICER && (
         <Stack.Screen
           name="PoachingAlerts"

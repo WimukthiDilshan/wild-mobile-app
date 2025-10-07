@@ -291,6 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 80,
   },
+  
   buttonEmoji: {
     fontSize: 24,
     marginBottom: 8,

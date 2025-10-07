@@ -11,15 +11,23 @@ import {
 import ApiService from '../services/ApiService';
 
 const statusColor = (status) => {
-  switch ((status || '').toLowerCase()) {
-    case 'investigating':
-      return '#FFD54F';
-    case 'resolved':
-      return '#66BB6A';
-    case 'pending':
-    default:
-      return '#EF5350';
-  }
+  const s = (status || '').toString().toLowerCase();
+  // in-progress / investigating -> orange
+  if (s === 'in progress' || s === 'investigating') return '#FFA726';
+  if (s === 'resolved') return '#66BB6A';
+  // pending or unknown -> red
+  if (s === 'pending' || !s) return '#EF5350';
+  // fallback
+  return '#616161';
+};
+
+// Map status -> emoji symbol
+const statusSymbol = (status) => {
+  const s = (status || '').toString().toLowerCase();
+  if (s === 'pending') return '🕒';
+  if (s === 'in progress' || s === 'investigating') return '🔄';
+  if (s === 'resolved') return '✅';
+  return '🕒';
 };
 
 const severityColor = (severity) => {
@@ -116,7 +124,7 @@ const PoachingAlertsScreen = ({ navigation }) => {
             </View>
             <View style={{ marginLeft: 8 }}>
               <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status || item.state || item.investigationStatus) }]}>
-                <Text style={styles.statusText}>{((item.status || item.state || item.investigationStatus) || 'pending').toUpperCase()}</Text>
+                <Text style={styles.statusText}>{`${statusSymbol(item.status || item.state || item.investigationStatus)}  ${((item.status || item.state || item.investigationStatus) || 'pending').toUpperCase()}`}</Text>
               </View>
             </View>
           </View>
