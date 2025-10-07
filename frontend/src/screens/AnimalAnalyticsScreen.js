@@ -15,6 +15,35 @@ import { BarChart, PieChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
 import AIAnalyticsService from '../services/AIAnalyticsService';
 
+// Scientific Names Mapping for Wildlife Species
+const SPECIES_SCIENTIFIC_NAMES = {
+  'Tiger': 'Panthera tigris',
+  'Elephant': 'Elephas maximus',
+  'Leopard': 'Panthera pardus',
+  'Orangutan': 'Pongo pygmaeus',
+  'Rhinoceros': 'Rhinoceros unicornis',
+  'Giant Panda': 'Ailuropoda melanoleuca',
+  'Polar Bear': 'Ursus maritimus',
+  'Mountain Gorilla': 'Gorilla beringei beringei',
+  'Snow Leopard': 'Panthera uncia',
+  'Chimpanzee': 'Pan troglodytes',
+  'Wolf': 'Canis lupus',
+  'Lion': 'Panthera leo',
+  'Giraffe': 'Giraffa camelopardalis',
+  'Zebra': 'Equus quagga',
+  'Cheetah': 'Acinonyx jubatus',
+  'Jaguar': 'Panthera onca',
+  'Hippopotamus': 'Hippopotamus amphibius',
+  'Crocodile': 'Crocodylus niloticus',
+  'Koala': 'Phascolarctos cinereus',
+  'Kangaroo': 'Macropus giganteus'
+};
+
+// Helper function to get scientific name
+const getScientificName = (commonName) => {
+  return SPECIES_SCIENTIFIC_NAMES[commonName] || 'Species not classified';
+};
+
 const screenWidth = Dimensions.get('window').width;
 
 const AnimalAnalyticsScreen = ({ route, navigation }) => {
@@ -158,6 +187,12 @@ const AnimalAnalyticsScreen = ({ route, navigation }) => {
         {/* Animal Summary */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>🦁 {animal.name} Analysis</Text>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Scientific Name:</Text>
+            <Text style={[styles.summaryValue, { fontStyle: 'italic', color: '#666' }]}>
+              {getScientificName(animal.name)}
+            </Text>
+          </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Current Population:</Text>
             <Text style={styles.summaryValue}>{animal.count} individuals</Text>

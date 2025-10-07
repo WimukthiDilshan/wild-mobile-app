@@ -8,6 +8,35 @@ import {
   Alert,
 } from 'react-native';
 
+// Scientific Names Mapping for Wildlife Species
+const SPECIES_SCIENTIFIC_NAMES = {
+  'Tiger': 'Panthera tigris',
+  'Elephant': 'Elephas maximus',
+  'Leopard': 'Panthera pardus',
+  'Orangutan': 'Pongo pygmaeus',
+  'Rhinoceros': 'Rhinoceros unicornis',
+  'Giant Panda': 'Ailuropoda melanoleuca',
+  'Polar Bear': 'Ursus maritimus',
+  'Mountain Gorilla': 'Gorilla beringei beringei',
+  'Snow Leopard': 'Panthera uncia',
+  'Chimpanzee': 'Pan troglodytes',
+  'Wolf': 'Canis lupus',
+  'Lion': 'Panthera leo',
+  'Giraffe': 'Giraffa camelopardalis',
+  'Zebra': 'Equus quagga',
+  'Cheetah': 'Acinonyx jubatus',
+  'Jaguar': 'Panthera onca',
+  'Hippopotamus': 'Hippopotamus amphibius',
+  'Crocodile': 'Crocodylus niloticus',
+  'Koala': 'Phascolarctos cinereus',
+  'Kangaroo': 'Macropus giganteus'
+};
+
+// Helper function to get scientific name
+const getScientificName = (commonName) => {
+  return SPECIES_SCIENTIFIC_NAMES[commonName] || 'Species not classified';
+};
+
 const AnimalDetailsScreen = ({ route, navigation }) => {
   const { animal } = route.params;
 
@@ -56,6 +85,7 @@ const AnimalDetailsScreen = ({ route, navigation }) => {
         {/* Header Card */}
         <View style={styles.headerCard}>
           <Text style={styles.animalName}>{animal.name}</Text>
+          <Text style={styles.scientificName}>{getScientificName(animal.name)}</Text>
           <TouchableOpacity
             style={[
               styles.statusBadge,
@@ -86,6 +116,13 @@ const AnimalDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>📋 Animal Information</Text>
           
           <View style={styles.detailCard}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>🧬 Scientific Name:</Text>
+              <Text style={[styles.detailValue, { fontStyle: 'italic', color: '#666' }]}>
+                {getScientificName(animal.name)}
+              </Text>
+            </View>
+            
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>🌍 Location:</Text>
               <Text style={styles.detailValue}>{animal.location}</Text>
@@ -183,6 +220,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: 'white',
+    marginBottom: 5,
+  },
+  scientificName: {
+    fontSize: 16,
+    fontStyle: 'italic',
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 10,
   },
   statusBadge: {

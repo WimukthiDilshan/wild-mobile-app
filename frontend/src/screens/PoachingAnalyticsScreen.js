@@ -15,6 +15,35 @@ import ApiService from '../services/ApiService';
 import AIAnalyticsService from '../services/AIAnalyticsService';
 import { useAuth } from '../contexts/AuthContext';
 
+// Scientific Names Mapping for Wildlife Species
+const SPECIES_SCIENTIFIC_NAMES = {
+  'Tiger': 'Panthera tigris',
+  'Elephant': 'Elephas maximus',
+  'Leopard': 'Panthera pardus',
+  'Orangutan': 'Pongo pygmaeus',
+  'Rhinoceros': 'Rhinoceros unicornis',
+  'Giant Panda': 'Ailuropoda melanoleuca',
+  'Polar Bear': 'Ursus maritimus',
+  'Mountain Gorilla': 'Gorilla beringei beringei',
+  'Snow Leopard': 'Panthera uncia',
+  'Chimpanzee': 'Pan troglodytes',
+  'Wolf': 'Canis lupus',
+  'Lion': 'Panthera leo',
+  'Giraffe': 'Giraffa camelopardalis',
+  'Zebra': 'Equus quagga',
+  'Cheetah': 'Acinonyx jubatus',
+  'Jaguar': 'Panthera onca',
+  'Hippopotamus': 'Hippopotamus amphibius',
+  'Crocodile': 'Crocodylus niloticus',
+  'Koala': 'Phascolarctos cinereus',
+  'Kangaroo': 'Macropus giganteus'
+};
+
+// Helper function to get scientific name
+const getScientificName = (commonName) => {
+  return SPECIES_SCIENTIFIC_NAMES[commonName] || 'Species not classified';
+};
+
 const screenWidth = Dimensions.get('window').width;
 
 const PoachingAnalyticsScreen = ({ navigation }) => {
