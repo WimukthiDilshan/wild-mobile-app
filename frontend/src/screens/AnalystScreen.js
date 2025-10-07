@@ -12,7 +12,10 @@ import {
   Share,
   TextInput,
   FlatList,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
+import RNFS from 'react-native-fs';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
 import { useAuth } from '../contexts/AuthContext';
@@ -171,44 +174,121 @@ const AnalystScreen = ({ navigation }) => {
   };
 
   const generateExcelData = () => {
-    // Create CSV format data for Excel
-    const headers = ['Animal Name', 'Species Count', 'Location', 'Habitat', 'Conservation Status', 'Last Updated'];
-    const csvContent = [
-      headers.join(','),
-      ...animals.map(animal => [
-        `"${animal.name}"`,
-        animal.count,
-        `"${animal.location}"`,
-        `"${animal.habitat}"`,
-        `"${animal.status}"`,
-        new Date().toLocaleDateString()
-      ].join(','))
-    ].join('\n');
+    // Create properly formatted CSV data for Excel
+    const headers = ['Animal Name', 'Species Count', 'Location', 'Habitat', 'Conservation Status', 'Date Added', 'Added By'];
     
-    return csvContent;
+    // Function to properly escape CSV values
+    const escapeCSV = (value) => {
+      if (value === null || value === undefined) return '""';
+      const str = String(value);
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return `"${str}"`;
+    };
+    
+    const csvRows = [
+      // Add BOM for proper UTF-8 encoding in Excel
+      '\uFEFF' + headers.map(escapeCSV).join(','),
+      ...animals.map(animal => [
+        animal.name || 'Unknown',
+        animal.count || 0,
+        animal.location || 'Unknown Location',
+        animal.habitat || 'Unknown Habitat',
+        animal.status || 'Not Evaluated',
+        animal.addedAt ? new Date(animal.addedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+        animal.addedBy || 'Unknown User'
+      ].map(escapeCSV).join(','))
+    ];
+    
+    return csvRows.join('\n');
   };
 
   const generateAnalyticsExcelData = () => {
-    // Create comprehensive analytics CSV
-    const headers = ['Metric', 'Value', 'Details'];
-    const csvContent = [
-      headers.join(','),
-      `"Total Species","${analytics.summary.totalSpecies}","Number of different species monitored"`,
-      `"Total Animals","${analytics.summary.totalCount}","Total individual animals tracked"`,
-      `"Locations","${analytics.summary.locationsCount}","Number of monitoring locations"`,
-      '',
-      '"=== Location Statistics ==="',
-      ...Object.entries(analytics.locationStats || {}).map(([location, stats]) => 
-        `"${location}","${stats.count}","${stats.animals} species"`
-      ),
-      '',
-      '"=== Species Statistics ==="',
-      ...Object.entries(analytics.speciesStats || {}).map(([species, data]) => 
-        `"${species}","${data.count}","Found in: ${data.locations?.join('; ') || 'Unknown'}"`
-      )
-    ].join('\n');
+    // Function to properly escape CSV values
+    const escapeCSV = (value) => {
+      if (value === null || value === undefined) return '""';
+      const str = String(value);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return `"${str}"`;
+    };
     
-    return csvContent;
+    // Create comprehensive analytics CSV with proper formatting
+    const summarySection = [
+      '\uFEFF' + ['Metric', 'Value', 'Details'].map(escapeCSV).join(','),
+      [
+        'Total Species',
+        analytics?.summary?.totalSpecies || 0,
+        'Number of different species monitored'
+      ].map(escapeCSV).join(','),
+      [
+        'Total Animals',
+        analytics?.summary?.totalCount || 0,
+        'Total individual animals tracked'
+      ].map(escapeCSV).join(','),
+      [
+        'Locations',
+        analytics?.summary?.locationsCount || 0,
+        'Number of monitoring locations'
+      ].map(escapeCSV).join(','),
+      '',
+      ['Location Statistics', '', ''].map(escapeCSV).join(','),
+      ['Location Name', 'Animal Count', 'Species Count'].map(escapeCSV).join(',')
+    ];
+
+    const locationSection = analytics?.locationStats
+      ? Object.entries(analytics.locationStats).map(([location, stats]) => 
+          [location, stats.count || 0, stats.animals || 0].map(escapeCSV).join(',')
+        )
+      : [];
+
+    const speciesHeader = [
+      '',
+      ['Species Statistics', '', ''].map(escapeCSV).join(','),
+      ['Species Name', 'Total Count', 'Locations Found'].map(escapeCSV).join(',')
+    ];
+
+    const speciesSection = analytics?.speciesStats
+      ? Object.entries(analytics.speciesStats).map(([species, data]) => 
+          [
+            species, 
+            data.count || 0, 
+            data.locations?.join('; ') || 'Unknown'
+          ].map(escapeCSV).join(',')
+        )
+      : [];
+
+    return [
+      ...summarySection,
+      ...locationSection,
+      ...speciesHeader,
+      ...speciesSection
+    ].join('\n');
+  };
+
+  const requestStoragePermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission',
+            message: 'App needs access to storage to download Excel files.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleDownloadExcel = async (type = 'animals') => {
@@ -217,29 +297,79 @@ const AnalystScreen = ({ navigation }) => {
     try {
       setExportLoading(true);
       
+      // Request storage permission
+      const hasPermission = await requestStoragePermission();
+      if (!hasPermission) {
+        Alert.alert('Permission Required', 'Storage permission is required to download files.');
+        return;
+      }
+      
       const csvData = type === 'animals' ? generateExcelData() : generateAnalyticsExcelData();
       const fileName = type === 'animals' 
         ? `forest_animals_data_${new Date().toISOString().split('T')[0]}.csv`
         : `forest_analytics_${new Date().toISOString().split('T')[0]}.csv`;
       
-      // Use React Native's built-in Share API
-      await Share.share({
-        message: `📊 Forest Data Export - ${fileName}\n\n${csvData}`,
-        title: `Forest ${type === 'animals' ? 'Animals' : 'Analytics'} Data Export`,
-      });
+      // Define the file path
+      const downloadPath = Platform.OS === 'ios' 
+        ? RNFS.DocumentDirectoryPath 
+        : RNFS.DownloadDirectoryPath;
+      
+      const filePath = `${downloadPath}/${fileName}`;
+      
+      // Write the CSV data to file
+      await RNFS.writeFile(filePath, csvData, 'utf8');
       
       Alert.alert(
-        '✅ Export Complete!',
-        `Your ${type === 'animals' ? 'animals' : 'analytics'} data has been exported as:\n\n� ${fileName}\n\nYou can save it to Files, email it, or open it with Excel/Google Sheets.`,
+        '✅ Download Complete!',
+        `Your ${type === 'animals' ? 'animals' : 'analytics'} data has been saved to:\n\n📁 ${Platform.OS === 'ios' ? 'Files App' : 'Downloads'}\n📄 ${fileName}\n\nYou can open it with Excel, Google Sheets, or any spreadsheet app.`,
         [
-          { text: 'Done', style: 'default' }
+          {
+            text: 'Share File',
+            onPress: async () => {
+              try {
+                await Share.share({
+                  url: Platform.OS === 'ios' ? `file://${filePath}` : filePath,
+                  title: `Forest ${type === 'animals' ? 'Animals' : 'Analytics'} Data`,
+                  message: `Forest wildlife data exported on ${new Date().toLocaleDateString()}`,
+                });
+              } catch (shareError) {
+                console.log('Share error:', shareError);
+              }
+            }
+          },
+          { 
+            text: 'Done', 
+            style: 'default' 
+          }
         ]
       );
     } catch (error) {
-      if (error.message !== 'User did not share') {
-        console.error('Export error:', error);
-        Alert.alert('Error', 'Failed to export data. Please try again.');
-      }
+      console.error('Export error:', error);
+      Alert.alert(
+        'Export Error', 
+        `Failed to download Excel file: ${error.message}\n\nTrying alternative method...`,
+        [
+          {
+            text: 'Try Share Instead',
+            onPress: async () => {
+              try {
+                const csvData = type === 'animals' ? generateExcelData() : generateAnalyticsExcelData();
+                const fileName = type === 'animals' 
+                  ? `forest_animals_data_${new Date().toISOString().split('T')[0]}.csv`
+                  : `forest_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+                
+                await Share.share({
+                  message: `📊 ${fileName}\n\n${csvData}`,
+                  title: `Forest ${type === 'animals' ? 'Animals' : 'Analytics'} Data Export`,
+                });
+              } catch (shareError) {
+                Alert.alert('Error', 'Unable to export data. Please try again.');
+              }
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     } finally {
       setExportLoading(false);
     }
