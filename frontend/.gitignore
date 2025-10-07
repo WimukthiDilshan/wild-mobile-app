@@ -55,3 +55,6 @@ buck-out/
 # Temporary files
 tmp/
 temp/
+
+# Local frontend config (contains developer machine BASE_URL)
+config.json
