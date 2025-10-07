@@ -13,7 +13,7 @@ import ApiService from '../services/ApiService';
 import { useAuth } from '../contexts/AuthContext';
 
 const HomeScreen = ({ navigation }) => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, userData, USER_ROLES } = useAuth();
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,10 +79,26 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.headerSubtitle}>
             Tracking {animals.length} species across various forest locations
           </Text>
+          {/* Top Poaching Alerts button for officers and permitted users */}
+          {userData?.role === USER_ROLES.OFFICER && (
+            <TouchableOpacity
+              style={styles.poachingTopButton}
+              onPress={() => navigation.navigate('PoachingAlerts')}>
+              <Text style={styles.poachingTopButtonText}>🚨 Poaching Alerts</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Action Buttons Row */}
         <View style={styles.actionButtonsContainer}>
+          {hasPermission('canViewPoaching') && (
+            <TouchableOpacity
+              style={styles.poachingButtonStyle}
+              onPress={() => navigation.navigate('PoachingAlerts')}>
+              <Text style={styles.buttonEmoji}>🚨</Text>
+              <Text style={styles.analystButtonText}>Poaching Alerts</Text>
+            </TouchableOpacity>
+          )}
           {hasPermission('canViewAnalytics') && (
             <TouchableOpacity
               style={styles.analystButtonStyle}
@@ -215,6 +231,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 5,
   },
+  poachingTopButton: {
+    backgroundColor: '#D32F2F',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    alignSelf: 'center',
+    marginTop: 10,
+    elevation: 3,
+  },
+  poachingTopButtonText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   actionButtonsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -224,6 +254,19 @@ const styles = StyleSheet.create({
   },
   analystButtonStyle: {
     backgroundColor: '#2196F3',
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    alignItems: 'center',
+    minHeight: 80,
+  },
+  poachingButtonStyle: {
+    backgroundColor: '#D32F2F',
     flex: 1,
     padding: 16,
     borderRadius: 16,

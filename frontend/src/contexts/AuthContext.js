@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }) => {
       canViewAnimals: true,
       canViewPoaching: true,
       canAddAnimals: true,
-      canAddPoaching: true,
+      canAddPoaching: false,
       canViewAnalytics: true,
       canAccessHome: true,
       canAccessInsertAnimals: true,
@@ -218,8 +218,14 @@ export const AuthProvider = ({ children }) => {
       [USER_ROLES.VISITOR]: 'Visitor',
       [USER_ROLES.DRIVER]: 'Forest Driver',
       [USER_ROLES.RESEARCHER]: 'Researcher',
+      [USER_ROLES.OFFICER]: 'Officer',
     };
-    return roleNames[role] || 'Unknown';
+    if (roleNames[role]) return roleNames[role];
+    // Fallback: convert raw role string to Title Case (e.g. 'park_manager' -> 'Park_manager')
+    if (typeof role === 'string' && role.length > 0) {
+      return role.charAt(0).toUpperCase() + role.slice(1);
+    }
+    return 'Unknown';
   };
 
   const getRoleEmoji = (role) => {
@@ -227,6 +233,7 @@ export const AuthProvider = ({ children }) => {
       [USER_ROLES.VISITOR]: '👁️',
       [USER_ROLES.DRIVER]: '🚗',
       [USER_ROLES.RESEARCHER]: '🔬',
+      [USER_ROLES.OFFICER]: '🛡️',
     };
     return roleEmojis[role] || '👤';
   };

@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 const { width, height } = Dimensions.get('window');
 
 const MainScreen = ({ navigation }) => {
-  const { user, userData, signOut, hasPermission } = useAuth();
+  const { user, userData, signOut, hasPermission, USER_ROLES, getRoleDisplayName, getRoleEmoji } = useAuth();
 
   const handleLogout = async () => {
     Alert.alert(
@@ -44,8 +44,16 @@ const MainScreen = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.userInfo}>
-            <Text style={styles.welcomeUser}>Welcome, {user?.firstName || 'User'}!</Text>
-            <Text style={styles.userRole}>Role: {user?.role || 'Unknown'}</Text>
+            <Text style={styles.welcomeUser}>
+              Welcome, {userData?.displayName || user?.displayName || user?.email || 'User'}!
+            </Text>
+            <Text style={styles.userRole}>
+              Role: {userData?.role ? getRoleDisplayName(userData.role) : (user?.role || 'Unknown')}
+            </Text>
+          </View>
+          {/** Show role emoji if available */}
+          <View style={{ marginLeft: 8 }}>
+            <Text style={{ fontSize: 20 }}>{getRoleEmoji(userData?.role)}</Text>
           </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -54,8 +62,8 @@ const MainScreen = ({ navigation }) => {
         <Text style={styles.appName}>🌲 Forest Guardian</Text>
         <Text style={styles.subtitle}>Wildlife Monitoring & Protection System</Text>
         
-        {/* Start Safari Button - Only for Visitors and Drivers */}
-        {(userData?.role === 'visitor' || userData?.role === 'driver') && (
+    {/* Start Safari Button - Only for Visitors and Drivers */}
+      {(userData?.role === 'visitor' || userData?.role === 'driver') && (
           <TouchableOpacity 
             style={styles.startSafariButton} 
             onPress={() => navigation.navigate('SafariStart')}
@@ -76,6 +84,17 @@ const MainScreen = ({ navigation }) => {
 
           {/* Action Buttons */}
           <View style={styles.buttonsContainer}>
+            {userData?.role === USER_ROLES.OFFICER && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.poachingAlertsButton]}
+                onPress={() => navigation.navigate('PoachingAlerts')}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonIcon}>🚨</Text>
+                <Text style={styles.buttonTitle}>Poaching Alerts</Text>
+                <Text style={styles.buttonSubtitle}>View reported incidents</Text>
+              </TouchableOpacity>
+            )}
+
             {hasPermission('canAddAnimals') && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.insertButton]}
@@ -92,7 +111,7 @@ const MainScreen = ({ navigation }) => {
                 style={[styles.actionButton, styles.poachingAnalyticsButton]}
                 onPress={() => navigation.navigate('PoachingAnalytics')}
                 activeOpacity={0.8}>
-                <Text style={styles.buttonIcon}>🛡️</Text>
+                <Text style={styles.buttonIcon}>�️</Text>
                 <Text style={styles.buttonTitle}>Poaching Analytics</Text>
                 <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
               </TouchableOpacity>
@@ -283,6 +302,9 @@ const styles = StyleSheet.create({
   },
   addPoachingButton: {
     backgroundColor: '#F44336',
+  },
+  poachingAlertsButton: {
+    backgroundColor: '#D32F2F',
   },
   animalsDataButton: {
     backgroundColor: '#FF9800',

@@ -17,6 +17,8 @@ import AnimalAnalyticsScreen from './src/screens/AnimalAnalyticsScreen';
 import InsertAnimalsScreen from './src/screens/InsertAnimalsScreen';
 import PoachingAnalyticsScreen from './src/screens/PoachingAnalyticsScreen';
 import AddPoachingScreen from './src/screens/AddPoachingScreen';
+import PoachingAlertsScreen from './src/screens/PoachingAlertsScreen';
+import PoachingAlertDetailsScreen from './src/screens/PoachingAlertDetailsScreen';
 import ParkManagementScreen from './src/screens/ParkManagementScreen';
 import UserPreferences from './src/screens/UserPreferencesScreen';
 import RecommendationsScreen from './src/screens/RecommendationsScreen';
@@ -66,7 +68,7 @@ const AuthNavigator = () => (
 
 // Main App Navigator (for authenticated users)
 const AppNavigator = () => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, userData, USER_ROLES } = useAuth();
   
   return (
     <Stack.Navigator
@@ -102,6 +104,11 @@ const AppNavigator = () => {
         component={AnimalDetailsScreen} 
         options={{ title: '🦁 Animal Details' }}
       />
+      <Stack.Screen
+        name="PoachingAlertDetails"
+        component={PoachingAlertDetailsScreen}
+        options={{ title: '🚨 Poaching Alert' }}
+      />
       {hasPermission('canViewAnalytics') && (
         <Stack.Screen 
           name="AnimalAnalytics" 
@@ -121,6 +128,13 @@ const AppNavigator = () => {
           name="PoachingAnalytics" 
           component={PoachingAnalyticsScreen} 
           options={{ title: '⚠️ Poaching Analytics' }}
+        />
+      )}
+      {userData?.role === USER_ROLES.OFFICER && (
+        <Stack.Screen
+          name="PoachingAlerts"
+          component={PoachingAlertsScreen}
+          options={{ title: '🚨 Poaching Alerts' }}
         />
       )}
       {hasPermission('canAddPoaching') && (
