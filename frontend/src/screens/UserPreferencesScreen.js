@@ -87,10 +87,12 @@ export default function UserPreferencesScreen() {
         adventure: userPreferences.experience.includes("Adventure Seekers") ? 1 : 0,
         relaxation: userPreferences.experience.includes("Relaxation & Nature") ? 1 : 0,
       };
+const { recommendations, parkDetails } = await ApiService.getRecommendedParks(featureVector);
 
-      const topParks = await ApiService.getRecommendedParks(featureVector);
-
-      navigation.navigate("Recommendations", { topParks });
+navigation.navigate("Recommendations", {
+  recommendations,
+  parkDetails,
+});
     } catch (error) {
       alert("Failed to get park recommendations. Please try again.");
     } finally {

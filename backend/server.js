@@ -1088,25 +1088,173 @@ app.get('/api/parks/:id', optionalAuth, async (req, res) => {
 });
 
 // Get parks by category
-app.get('/api/parks/category/:category', optionalAuth, async (req, res) => {
+// app.get('/api/parks/category/:category', optionalAuth, async (req, res) => {
+//   try {
+//     const { category } = req.params;
+//     const snapshot = await db.collection('parks')
+//       .where('category', '==', decodeURIComponent(category))
+//       .orderBy('name')
+//       .get();
+    
+//     const parks = [];
+//     snapshot.forEach(doc => {
+//       parks.push({ id: doc.id, ...doc.data() });
+//     });
+    
+//     res.json({ success: true, data: parks });
+//   } catch (error) {
+//     console.error('Error fetching parks by category:', error);
+//     res.status(500).json({ success: false, error: 'Failed to fetch parks by category' });
+//   }
+// });
+
+// POST /api/recommend
+// app.post('/api/recommend', async (req, res) => {
+//   try {
+//     // Send the user input to the Python script
+//     const input = JSON.stringify(req.body);
+//     const py = spawn('python', ['python/predict.py', input]);
+
+//     let data = '';
+//     let error = '';
+
+//     py.stdout.on('data', (chunk) => {
+//       data += chunk.toString();
+//     });
+
+//     py.stderr.on('data', (chunk) => {
+//       error += chunk.toString();
+//     });
+
+//     py.on('close', async (code) => {
+//       if (error) {
+//         console.error('❌ Python error:', error);
+//         return res.status(500).json({ success: false, error });
+//       }
+
+//       try {
+//         // ✅ Parse list of recommendations from Python
+//         const recommendations = JSON.parse(data); // e.g. [{ park: "Yala", score: 0.93 }, ...]
+//         const topParks = recommendations.map((r) => r.park);
+
+//         // ✅ Fetch matching park data from Firestore
+//         const parksData = [];
+
+//         for (const parkName of topParks) {
+//           const snapshot = await db
+//             .collection('parks')
+//             .where('name', '==', parkName)
+//             .get();
+
+//           snapshot.forEach((doc) => {
+//             parksData.push({ id: doc.id, ...doc.data() });
+//           });
+//         }
+
+//         console.log('🦁 Recommended parks full details:', parksData);
+
+//         // ✅ Send combined response
+//         res.json({
+//           success: true,
+//           data: {
+//             recommendations, // includes park + score
+//             parkDetails: parksData, // full Firestore details
+//           },
+//         });
+//       } catch (err) {
+//         console.error('Error processing recommendation:', err);
+//         res.status(500).json({
+//           success: false,
+//           error: 'Failed to process recommendation',
+//           details: err.message,
+//         });
+//       }
+//     });
+//   } catch (err) {
+//     console.error('Server error:', err);
+//     res.status(500).json({
+//       success: false,
+//       error: 'Internal server error',
+//       details: err.message,
+//     });
+//   }
+// });
+app.post('/api/recommend', async (req, res) => {
   try {
-    const { category } = req.params;
-    const snapshot = await db.collection('parks')
-      .where('category', '==', decodeURIComponent(category))
-      .orderBy('name')
-      .get();
-    
-    const parks = [];
-    snapshot.forEach(doc => {
-      parks.push({ id: doc.id, ...doc.data() });
+    const input = JSON.stringify(req.body);
+    const py = spawn('python', ['python/predict.py', input]);
+
+    let data = '';
+    let error = '';
+
+    py.stdout.on('data', (chunk) => {
+      data += chunk.toString();
     });
-    
-    res.json({ success: true, data: parks });
-  } catch (error) {
-    console.error('Error fetching parks by category:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch parks by category' });
+
+    py.stderr.on('data', (chunk) => {
+      error += chunk.toString();
+    });
+
+    py.on('close', async (code) => {
+      if (error) {
+        console.error('❌ Python error:', error);
+        return res.status(500).json({ success: false, error });
+      }
+
+      try {
+        const recommendations = JSON.parse(data);
+        const topParks = recommendations.map((r) => r.park);
+
+        console.log('🧭 Top parks to fetch:', topParks);
+
+        // ✅ Fetch all park details at once (if ≤10 parks)
+        let parksData = [];
+        if (topParks.length > 0) {
+          const snapshot = await db
+            .collection('parks')
+            .where('name', 'in', topParks)
+            .get();
+
+          snapshot.forEach((doc) => {
+            parksData.push({ id: doc.id, ...doc.data() });
+          });
+        }
+
+        console.log('🦁 Recommended parks full details:', parksData);
+
+        res.json({
+          success: true,
+          data: {
+            recommendations,
+            parkDetails: parksData,
+          },
+        });
+      } catch (err) {
+        console.error('Error processing recommendation:', err);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to process recommendation',
+          details: err.message,
+        });
+      }
+    });
+  } catch (err) {
+    console.error('Server error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: err.message,
+    });
   }
 });
+
+
+
+
+
+
+
+
 
 // Add new park
 app.post('/api/parks', authenticateUser, async (req, res) => {

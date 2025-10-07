@@ -397,18 +397,47 @@ class ApiService {
       throw error;
     }
   }
-  async getRecommendedParks(featureVector) {
+  // async getRecommendedParks(featureVector) {
+  // try {
+  //   const headers = await this.getAuthHeaders();
+  //   const response = await fetch(`${BASE_URL}/recommend`, {
+  //     method: 'POST',
+  //     headers,
+  //     body: JSON.stringify(featureVector),
+  //   });
+
+  //   const data = await response.json();
+  //   if (data.success) {
+  //     return data.data.topParks; // [{parkName, score}, ...]
+  //   } else {
+  //     throw new Error(data.error || 'Failed to get recommendations');
+  //   }
+  // } catch (error) {
+  //   console.error('Error fetching recommendations:', error);
+  //   throw error;
+  // }
+
+//}
+async getRecommendedParks(featureVector) {
   try {
     const headers = await this.getAuthHeaders();
     const response = await fetch(`${BASE_URL}/recommend`, {
       method: 'POST',
-      headers,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(featureVector),
     });
 
     const data = await response.json();
-    if (data.success) {
-      return data.data.topParks; // [{parkName, score}, ...]
+
+    if (data.success && data.data) {
+      // ✅ return the correct structure expected by RecommendationsScreen
+      return {
+        recommendations: data.data.recommendations || [],
+        parkDetails: data.data.parkDetails || [],
+      };
     } else {
       throw new Error(data.error || 'Failed to get recommendations');
     }
@@ -417,7 +446,6 @@ class ApiService {
     throw error;
   }
 }
-
 
 }
 
