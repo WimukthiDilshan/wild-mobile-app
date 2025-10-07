@@ -339,21 +339,43 @@ const SafariMapScreen = ({ navigation, route }) => {
         )}
 
         {/* Animal Markers with their emojis */}
-        {animalMarkers.map((animal) => (
-          <Marker
-            key={animal.id}
-            coordinate={{
-              latitude: animal.latitude,
-              longitude: animal.longitude,
-            }}
-            title={animal.name}
-            description={`Count: ${animal.count}`}
-          >
-            <View style={styles.animalMarker}>
-              <Text style={styles.animalMarkerText}>{animal.emoji}</Text>
-            </View>
-          </Marker>
-        ))}
+        {animalMarkers.map((animal) => {
+          // Calculate distance between user and animal
+          let isNearby = false;
+          if (userLocation) {
+            const distance = LocationService.calculateDistance(
+              userLocation.latitude,
+              userLocation.longitude,
+              animal.latitude,
+              animal.longitude
+            );
+            // Check if within 250m (0.25 km)
+            isNearby = distance <= 0.25;
+          }
+
+          return (
+            <Marker
+              key={animal.id}
+              coordinate={{
+                latitude: animal.latitude,
+                longitude: animal.longitude,
+              }}
+              title={animal.name}
+              description={`Count: ${animal.count}`}
+            >
+              <View style={styles.animalMarkerContainer}>
+                {isNearby && (
+                  <View style={styles.stillThereLabel}>
+                    <Text style={styles.stillThereLabelText}>Still there?</Text>
+                  </View>
+                )}
+                <View style={styles.animalMarker}>
+                  <Text style={styles.animalMarkerText}>{animal.emoji}</Text>
+                </View>
+              </View>
+            </Marker>
+          );
+        })}
 
         {/* User's Current Location Marker */}
         {userLocation && (
@@ -700,6 +722,26 @@ const styles = StyleSheet.create({
   },
   pinnedMarkerText: {
     fontSize: 22,
+  },
+  animalMarkerContainer: {
+    alignItems: 'center',
+  },
+  stillThereLabel: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  stillThereLabelText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   animalMarker: {
     width: 50,
