@@ -45,6 +45,8 @@ const ParkManagementScreen = ({ navigation }) => {
     experienceLevels: [],
   });
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [locationData, setLocationData] = useState(null);
 
   const parkCategories = [
     "National Park",
@@ -105,6 +107,7 @@ const ParkManagementScreen = ({ navigation }) => {
 
   const openAddModal = () => {
     setEditingPark(null);
+    setLocationData(null); // Reset location data
     setFormData({
       name: "",
       location: "",
@@ -126,6 +129,20 @@ const ParkManagementScreen = ({ navigation }) => {
 
   const openEditModal = (park) => {
     setEditingPark(park);
+    
+    // Set location data if coordinates exist
+    if (park.coordinates && park.coordinates.latitude && park.coordinates.longitude) {
+      setLocationData({
+        latitude: park.coordinates.latitude,
+        longitude: park.coordinates.longitude,
+        displayName: park.location,
+        source: 'Existing',
+        radius: park.area ? Math.sqrt(park.area / Math.PI).toFixed(2) : null // Reverse calculate radius from area
+      });
+    } else {
+      setLocationData(null);
+    }
+    
     setFormData({
       name: park.name || "",
       location: park.location || "",
@@ -261,6 +278,44 @@ const ParkManagementScreen = ({ navigation }) => {
           },
         },
       ]
+    );
+  };
+
+  // Handle map location selection with automatic 10km radius calculation
+  const handleMapLocationSelect = (selectedLocation) => {
+    const PARK_RADIUS_KM = 10;
+    // Calculate area: π × r² where r = 10km
+    const calculatedArea = Math.PI * Math.pow(PARK_RADIUS_KM, 2);
+    
+    const locationString = selectedLocation.name || 
+      `${selectedLocation.latitude?.toFixed(6)}, ${selectedLocation.longitude?.toFixed(6)}`;
+    
+    setLocationData({
+      ...selectedLocation,
+      displayName: selectedLocation.name || locationString,
+      source: selectedLocation.source || 'Map',
+      radius: PARK_RADIUS_KM
+    });
+    
+    setFormData(prev => ({
+      ...prev,
+      location: locationString,
+      coordinates: {
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude
+      },
+      area: calculatedArea.toFixed(2) // Automatically set to 314.16 km²
+    }));
+    
+    setShowMapPicker(false);
+    
+    Alert.alert(
+      '📍 Location Selected!',
+      `Location: ${locationString}\n` +
+      `Coordinates: ${selectedLocation.latitude?.toFixed(6)}, ${selectedLocation.longitude?.toFixed(6)}\n` +
+      `Park Radius: ${PARK_RADIUS_KM} km\n` +
+      `Calculated Area: ${calculatedArea.toFixed(2)} km²`,
+      [{ text: 'OK' }]
     );
   };
 
@@ -491,29 +546,67 @@ const ParkManagementScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Location *</Text>
+                <Text style={styles.formLabel}>📍 Location *</Text>
                 <TextInput
                   style={styles.formInput}
                   value={formData.location}
                   onChangeText={(text) =>
                     setFormData({ ...formData, location: text })
                   }
-                  placeholder="Enter location"
+                  placeholder="Enter location or pin on map"
+                  editable={true}
                 />
+                
+                {/* Map Picker Button */}
+                <TouchableOpacity
+                  style={styles.mapPickerButton}
+                  onPress={() => setShowMapPicker(true)}
+                >
+                  <Text style={styles.mapPickerButtonText}>🗺️ Pin Location on Map</Text>
+                </TouchableOpacity>
+
+                {/* Location Data Display */}
+                {locationData && (
+                  <View style={styles.locationDataContainer}>
+                    <View style={styles.locationDataHeader}>
+                      <Text style={styles.locationDataTitle}>
+                        📍 {locationData.displayName}
+                      </Text>
+                      <Text style={styles.locationDataSource}>
+                        via {locationData.source}
+                      </Text>
+                    </View>
+                    <Text style={styles.locationDataCoords}>
+                      🌐 {locationData.latitude?.toFixed(6)}, {locationData.longitude?.toFixed(6)}
+                    </Text>
+                    {locationData.radius && (
+                      <Text style={styles.locationDataRadius}>
+                        🎯 Park Radius: {locationData.radius} km
+                      </Text>
+                    )}
+                  </View>
+                )}
               </View>
 
               <View style={styles.formRow}>
                 <View style={[styles.formGroup, styles.halfWidth]}>
                   <Text style={styles.formLabel}>Area (km²)</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={formData.area}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, area: text })
-                    }
-                    placeholder="0"
-                    keyboardType="numeric"
-                  />
+                  <View style={styles.areaDisplayContainer}>
+                    <TextInput
+                      style={[styles.formInput, styles.areaInput]}
+                      value={formData.area}
+                      onChangeText={(text) =>
+                        setFormData({ ...formData, area: text })
+                      }
+                      placeholder="0"
+                      keyboardType="numeric"
+                    />
+                    {locationData && locationData.radius && (
+                      <Text style={styles.areaHint}>
+                        Auto-calculated from {locationData.radius}km radius
+                      </Text>
+                    )}
+                  </View>
                 </View>
                 <View style={[styles.formGroup, styles.halfWidth]}>
                   <Text style={styles.formLabel}>Established</Text>
@@ -752,6 +845,14 @@ const ParkManagementScreen = ({ navigation }) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Wildlife Map Picker */}
+      <WildlifeMapPicker
+        visible={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onLocationSelect={handleMapLocationSelect}
+        initialLocation={locationData}
+      />
     </View>
   );
 };
@@ -1118,6 +1219,77 @@ const styles = StyleSheet.create({
   selectedMultiSelectButtonText: {
     color: "white",
     fontWeight: "bold",
+  },
+  mapPickerButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 10,
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  mapPickerButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  locationDataContainer: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: "#E8F5E9",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#4CAF50",
+  },
+  locationDataHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  locationDataTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2E7D32",
+    flex: 1,
+  },
+  locationDataSource: {
+    fontSize: 12,
+    color: "#666",
+    backgroundColor: "#C8E6C9",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    fontWeight: "500",
+  },
+  locationDataCoords: {
+    fontSize: 13,
+    color: "#555",
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 4,
+  },
+  locationDataRadius: {
+    fontSize: 13,
+    color: "#2E7D32",
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  areaDisplayContainer: {
+    position: "relative",
+  },
+  areaInput: {
+    backgroundColor: "#F1F8E9",
+  },
+  areaHint: {
+    fontSize: 11,
+    color: "#4CAF50",
+    marginTop: 4,
+    fontStyle: "italic",
   },
 });
 

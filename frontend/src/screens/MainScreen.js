@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 const { width, height } = Dimensions.get('window');
 
 const MainScreen = ({ navigation }) => {
-  const { user, userData, signOut, hasPermission, USER_ROLES } = useAuth();
+  const { user, userData, signOut, hasPermission } = useAuth();
 
   const handleLogout = async () => {
     Alert.alert(
@@ -44,8 +44,8 @@ const MainScreen = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.userInfo}>
-            <Text style={styles.welcomeUser}>Welcome, {userData?.firstName || user?.displayName || 'User'}!</Text>
-            <Text style={styles.userRole}>Role: {userData?.role || user?.role || 'Unknown'}</Text>
+            <Text style={styles.welcomeUser}>Welcome, {user?.firstName || 'User'}!</Text>
+            <Text style={styles.userRole}>Role: {user?.role || 'Unknown'}</Text>
           </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -53,6 +53,17 @@ const MainScreen = ({ navigation }) => {
         </View>
         <Text style={styles.appName}>🌲 Forest Guardian</Text>
         <Text style={styles.subtitle}>Wildlife Monitoring & Protection System</Text>
+        
+        {/* Start Safari Button - Only for Visitors and Drivers */}
+        {(userData?.role === 'visitor' || userData?.role === 'driver') && (
+          <TouchableOpacity 
+            style={styles.startSafariButton} 
+            onPress={() => navigation.navigate('SafariStart')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.startSafariButtonText}>🦒 Start Safari</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Main Content */}
@@ -65,17 +76,6 @@ const MainScreen = ({ navigation }) => {
 
           {/* Action Buttons */}
           <View style={styles.buttonsContainer}>
-            {/* If user is an officer, show Poaching Alerts first */}
-            {userData?.role === USER_ROLES.OFFICER && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.addPoachingButton]}
-                onPress={() => navigation.navigate('PoachingAlerts')}
-                activeOpacity={0.8}>
-                <Text style={styles.buttonIcon}>🚨</Text>
-                <Text style={styles.buttonTitle}>Poaching Alerts</Text>
-                <Text style={styles.buttonSubtitle}>View and manage alerts</Text>
-              </TouchableOpacity>
-            )}
             {hasPermission('canAddAnimals') && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.insertButton]}
@@ -92,14 +92,13 @@ const MainScreen = ({ navigation }) => {
                 style={[styles.actionButton, styles.poachingAnalyticsButton]}
                 onPress={() => navigation.navigate('PoachingAnalytics')}
                 activeOpacity={0.8}>
-                <Text style={styles.buttonIcon}>�️</Text>
+                <Text style={styles.buttonIcon}>🛡️</Text>
                 <Text style={styles.buttonTitle}>Poaching Analytics</Text>
                 <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
               </TouchableOpacity>
             )}
 
-            {/* For officers we hide the Add Poaching form and instead show Poaching Alerts */}
-            {hasPermission('canAddPoaching') && userData?.role !== USER_ROLES.OFFICER && (
+            {hasPermission('canAddPoaching') && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.addPoachingButton]}
                 onPress={() => navigation.navigate('AddPoaching')}
@@ -109,8 +108,6 @@ const MainScreen = ({ navigation }) => {
                 <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
               </TouchableOpacity>
             )}
-
-            {/* officer Poaching Alerts moved to top to prioritize alerts view */}
 
             {hasPermission('canViewAnalytics') && (
               <TouchableOpacity
@@ -217,6 +214,24 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#A5D6A7',
+    textAlign: 'center',
+  },
+  startSafariButton: {
+    backgroundColor: '#FFA726',
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  startSafariButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
   scrollContainer: {
