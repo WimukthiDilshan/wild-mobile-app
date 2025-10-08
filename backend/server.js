@@ -285,6 +285,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Forest API is running' });
 });
 
+// AI Routes for Species Seasonal Behavior Prediction
+const seasonalAIRoutes = require('./ai_models/api/seasonal_ai_routes');
+app.use('/api/ai', seasonalAIRoutes);
+
 // Get all animals
 app.get('/api/animals', optionalAuth, async (req, res) => {
   try {

@@ -18,7 +18,7 @@ import {
 import RNFS from 'react-native-fs';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import ApiService from '../services/ApiService';
-import TemporalAnalysisService from '../services/TemporalAnalysisService';
+import TemporalAnalysisService, { SeasonalBehaviorAPI } from '../services/TemporalAnalysisService';
 import { useAuth } from '../contexts/AuthContext';
 
 const screenWidth = Dimensions.get('window').width;
@@ -77,6 +77,7 @@ const AnalystScreen = ({ navigation }) => {
   const [seasonalAnalysis, setSeasonalAnalysis] = useState(null);
   const [temporalInsights, setTemporalInsights] = useState([]);
   const [migrationPatterns, setMigrationPatterns] = useState({});
+  const [temporalLoading, setTemporalLoading] = useState(false);
 
   // Check if user has permission to view analytics
   if (!rolePermissions?.canViewAnalytics) {
@@ -131,13 +132,34 @@ const AnalystScreen = ({ navigation }) => {
 
       // Generate temporal analysis from existing data
       if (animalsData && animalsData.length > 0) {
-        const seasonalData = TemporalAnalysisService.generateSeasonalAnalysis(animalsData);
-        const insights = TemporalAnalysisService.generateTemporalInsights(animalsData);
-        const patterns = TemporalAnalysisService.analyzeMigrationPatterns(animalsData);
+        console.log(`🔄 Processing ${animalsData.length} animals for temporal analysis...`);
+        setTemporalLoading(true);
         
-        setSeasonalAnalysis(seasonalData);
-        setTemporalInsights(insights);
-        setMigrationPatterns(patterns);
+        try {
+          const seasonalData = TemporalAnalysisService.generateSeasonalAnalysis(animalsData);
+          const insights = await TemporalAnalysisService.generateTemporalInsights(animalsData);
+          const patterns = TemporalAnalysisService.analyzeMigrationPatterns(animalsData);
+          
+          console.log(`📊 Generated ${insights.length} temporal insights`);
+          console.log('🤖 Sample insight:', insights[0]);
+          
+          setSeasonalAnalysis(seasonalData);
+          setTemporalInsights(insights);
+          setMigrationPatterns(patterns);
+        } catch (error) {
+          console.error('❌ Error generating temporal analysis:', error);
+          // Set empty arrays so UI doesn't show loading forever
+          setSeasonalAnalysis({ seasonalStats: {}, monthlyStats: {} });
+          setTemporalInsights([]);
+          setMigrationPatterns({});
+        } finally {
+          setTemporalLoading(false);
+        }
+      } else {
+        console.log('❌ No animals data available for temporal analysis');
+        setSeasonalAnalysis(null);
+        setTemporalInsights([]);
+        setMigrationPatterns({});
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load analytics data');
@@ -747,13 +769,42 @@ const AnalystScreen = ({ navigation }) => {
 
   // Temporal Analysis Rendering
   const renderTemporalAnalysis = () => {
-    if (!seasonalAnalysis || !temporalInsights.length) {
+    if (temporalLoading) {
       return (
         <View style={styles.temporalContainer}>
           <Text style={styles.sectionTitle}>📅 Seasonal Analysis</Text>
           <View style={styles.noDataCard}>
-            <Text style={styles.noDataText}>No temporal data available yet.</Text>
-            <Text style={styles.noDataSubtext}>Add more animal sightings to see seasonal patterns!</Text>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.noDataText}>Generating AI-powered insights...</Text>
+            <Text style={styles.noDataSubtext}>Analyzing seasonal patterns and behaviors</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (!seasonalAnalysis || !temporalInsights || !temporalInsights.length) {
+      const hasAnimals = animals && animals.length > 0;
+      
+      return (
+        <View style={styles.temporalContainer}>
+          <Text style={styles.sectionTitle}>📅 Seasonal Analysis</Text>
+          <View style={styles.noDataCard}>
+            <Text style={styles.noDataText}>
+              {hasAnimals ? 'No AI insights generated' : 'No temporal data available yet.'}
+            </Text>
+            <Text style={styles.noDataSubtext}>
+              {hasAnimals ? 'AI service may be unavailable. Try testing the connection.' : 'Add more animal sightings to see seasonal patterns!'}
+            </Text>
+            {hasAnimals && (
+              <TouchableOpacity 
+                style={styles.debugButton}
+                onPress={async () => {
+                  console.log('🔧 Debug: Testing AI service...');
+                  await SeasonalBehaviorAPI.debugConnection();
+                }}>
+                <Text style={styles.debugButtonText}>Test AI Service</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       );
@@ -2105,6 +2156,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+  },
+  debugButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 16,
+    alignSelf: 'center',
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
 

@@ -4,81 +4,233 @@
  * Works with existing animal data timestamps and locations
  */
 
-// Predefined seasonal behavior patterns for wildlife species
-const SPECIES_SEASONAL_PATTERNS = {
-  'Tiger': {
-    breedingSeason: { months: [11, 12, 1, 2], peak: 12 },
-    activePeriods: { 
-      high: [3, 4, 9, 10], // Spring & Autumn - optimal hunting weather
-      low: [6, 7, 8] // Summer - heat avoidance
-    },
-    migrationTendency: 'territorial', // minimal migration, territorial behavior
-    weatherPreference: 'cool_dry',
-    behaviorByMonth: {
-      1: 'breeding', 2: 'breeding', 3: 'territorial_marking',
-      4: 'hunting_peak', 5: 'normal_activity', 6: 'heat_avoidance',
-      7: 'heat_avoidance', 8: 'monsoon_adaptation', 9: 'increased_activity',
-      10: 'territorial_expansion', 11: 'pre_breeding', 12: 'breeding_peak'
-    },
-    populationPeaks: [4, 10], // April and October
-    threatLevels: { high: [6, 7, 8], moderate: [1, 2, 11, 12], low: [3, 4, 5, 9, 10] }
-  },
-
-  'Elephant': {
-    breedingSeason: { months: [6, 7, 8, 9], peak: 7 },
-    activePeriods: { 
-      high: [4, 5, 6, 10, 11], 
-      low: [12, 1, 2] 
-    },
-    migrationTendency: 'seasonal', // follows water sources and food
-    weatherPreference: 'moderate_wet',
-    behaviorByMonth: {
-      1: 'dry_season_survival', 2: 'water_source_congregation',
-      3: 'pre_monsoon_movement', 4: 'foraging_intensive', 5: 'social_gathering',
-      6: 'breeding_preparation', 7: 'breeding_peak', 8: 'breeding_active',
-      9: 'post_breeding_care', 10: 'feeding_intensive',
-      11: 'social_bonding', 12: 'dry_season_preparation'
-    },
-    populationPeaks: [7, 10], // Breeding and post-monsoon feeding
-    threatLevels: { high: [1, 2, 12], moderate: [3, 9, 11], low: [4, 5, 6, 7, 8, 10] }
-  },
-
-  'Leopard': {
-    breedingSeason: { months: [1, 2, 5, 6], peak: 2 },
-    activePeriods: { 
-      high: [1, 2, 3, 10, 11, 12], 
-      low: [6, 7, 8] 
-    },
-    migrationTendency: 'opportunistic',
-    weatherPreference: 'cool_moderate',
-    behaviorByMonth: {
-      1: 'breeding_active', 2: 'breeding_peak', 3: 'territorial_defense',
-      4: 'hunting_adaptation', 5: 'secondary_breeding', 6: 'heat_shelter',
-      7: 'nocturnal_increase', 8: 'survival_mode', 9: 'activity_recovery',
-      10: 'territorial_expansion', 11: 'pre_winter_prep', 12: 'winter_adaptation'
-    },
-    populationPeaks: [2, 11],
-    threatLevels: { high: [6, 7, 8], moderate: [4, 5, 9], low: [1, 2, 3, 10, 11, 12] }
-  },
-
-  'Rhinoceros': {
-    breedingSeason: { months: [2, 3, 4, 5], peak: 3 },
-    activePeriods: { 
-      high: [2, 3, 4, 10, 11], 
-      low: [6, 7, 8, 9] 
-    },
-    migrationTendency: 'minimal',
-    weatherPreference: 'cool_wet',
-    behaviorByMonth: {
-      1: 'wallowing_frequent', 2: 'breeding_start', 3: 'breeding_peak',
-      4: 'post_breeding', 5: 'grazing_intensive', 6: 'heat_stress',
-      7: 'mud_wallowing', 8: 'shade_seeking', 9: 'monsoon_relief',
-      10: 'feeding_recovery', 11: 'social_interaction', 12: 'winter_grazing'
-    },
-    populationPeaks: [3, 11],
-    threatLevels: { high: [6, 7, 8], moderate: [1, 9, 12], low: [2, 3, 4, 5, 10, 11] }
+// AI-powered seasonal behavior prediction service
+class SeasonalBehaviorAPI {
+  // React Native Android emulator uses 10.0.2.2 to access host machine localhost
+  // For iOS simulator, localhost works fine
+  // For real devices, you'll need the actual IP address of your development machine
+  static getBaseURL() {
+    try {
+      const { Platform } = require('react-native');
+      if (Platform.OS === 'android') {
+        return 'http://10.0.2.2:3000/api/ai'; // Android emulator
+      }
+      return 'http://localhost:3000/api/ai'; // iOS/other platforms
+    } catch (error) {
+      // Fallback if Platform not available
+      return 'http://localhost:3000/api/ai';
+    }
   }
-};
+  
+  /**
+   * Predict seasonal behavior using AI model
+   * @param {string} species - Species name
+   * @param {number} month - Month number (1-12)
+   * @returns {Promise<Object>} Prediction data
+   */
+  static async predictSeasonalBehavior(species, month) {
+    try {
+      console.log(`Making AI prediction request for ${species} month ${month}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`${this.getBaseURL()}/predict-seasonal-behavior`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          species,
+          month,
+          migration_tendency: 'territorial', // default
+          weather_preference: 'cool_dry' // default - matches training data
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`AI prediction response for ${species}:`, data);
+      return data.success ? data.prediction : this.getFallbackPrediction();
+    } catch (error) {
+      console.warn(`AI prediction failed for ${species} month ${month}:`, error);
+      if (error.name === 'AbortError') {
+        console.warn('Request timed out after 10 seconds');
+      }
+      return this.getFallbackPrediction();
+    }
+  }
+
+  /**
+   * Get supported species from AI model
+   * @returns {Promise<Array>} Array of supported species
+   */
+  static async getSupportedSpecies() {
+    try {
+      const response = await fetch(`${this.getBaseURL()}/supported-species`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      return data.success ? data.species : [];
+    } catch (error) {
+      console.warn('Failed to get supported species:', error);
+      return ['Tiger', 'Elephant', 'Leopard', 'Rhinoceros']; // fallback
+    }
+  }
+
+  /**
+   * Batch prediction for multiple species/month combinations
+   * @param {Array} predictions - Array of {species, month} objects
+   * @returns {Promise<Array>} Array of prediction results
+   */
+  static async batchPredict(predictions) {
+    try {
+      console.log('Making batch prediction request:', predictions);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for batch
+      
+      const response = await fetch(`${this.getBaseURL()}/batch-predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ predictions }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      console.log('Batch prediction response:', data);
+      return data.success ? data.results : [];
+    } catch (error) {
+      console.warn('Batch prediction failed:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Batch request timed out after 15 seconds');
+      }
+      return predictions.map(p => ({
+        species: p.species,
+        month: p.month,
+        prediction: this.getFallbackPrediction(),
+        success: false
+      }));
+    }
+  }
+
+  /**
+   * Check AI service health
+   * @returns {Promise<Object>} Health status
+   */
+  static async checkHealth() {
+    try {
+      console.log('Checking AI service health...');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${this.getBaseURL()}/health`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const healthData = await response.json();
+      console.log('AI service health:', healthData);
+      return healthData;
+    } catch (error) {
+      console.warn('AI service health check failed:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Health check timed out after 5 seconds');
+      }
+      return { status: 'error', modelsLoaded: false, error: error.message };
+    }
+  }
+
+  /**
+   * Test basic connectivity to backend
+   * @returns {Promise<boolean>} True if backend is reachable
+   */
+  static async testConnectivity() {
+    try {
+      console.log('Testing backend connectivity...');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      
+      const response = await fetch(`${this.getBaseURL()}/health`, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log(`Backend connectivity test: ${response.status} ${response.statusText}`);
+      return response.ok;
+    } catch (error) {
+      console.warn('Backend connectivity test failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Fallback prediction when AI service is unavailable
+   * @returns {Object} Default prediction
+   */
+  static getFallbackPrediction() {
+    return {
+      primaryBehavior: 'normal_activity',
+      breedingSeason: false,
+      breedingPeak: false,
+      activityLevel: 'Normal',
+      threatLevel: 'Low',
+      migrationTendency: 'territorial',
+      populationPeak: false,
+      recommendation: 'Continue regular monitoring',
+      confidence: 'Low - AI service unavailable, using fallback'
+    };
+  }
+
+  /**
+   * Debug method to test AI service connection
+   * Call this method to troubleshoot connection issues
+   */
+  static async debugConnection() {
+    const baseURL = this.getBaseURL();
+    console.log('=== AI Service Connection Debug ===');
+    console.log(`Base URL: ${baseURL}`);
+    
+    try {
+      console.log('Testing connectivity...');
+      const isConnected = await this.testConnectivity();
+      console.log(`Connectivity test: ${isConnected ? 'PASS' : 'FAIL'}`);
+      
+      if (isConnected) {
+        console.log('Testing health endpoint...');
+        const health = await this.checkHealth();
+        console.log('Health check result:', health);
+        
+        console.log('Testing sample prediction...');
+        const prediction = await this.predictSeasonalBehavior('Tiger', 3);
+        console.log('Sample prediction result:', prediction);
+      }
+    } catch (error) {
+      console.error('Debug connection failed:', error);
+    }
+    
+    console.log('=== End Debug ===');
+  }
+}
 
 class TemporalAnalysisService {
   
@@ -197,46 +349,20 @@ class TemporalAnalysisService {
    * @param {number} month - Month number (1-12)
    * @returns {Object} Prediction data
    */
-  /* TEMPORARILY HIDDEN - Seasonal Behavior Prediction
-  static predictSeasonalBehavior(species, month) {
-    const patterns = SPECIES_SEASONAL_PATTERNS[species];
-    if (!patterns) {
-      return {
-        primaryBehavior: 'normal_activity',
-        breedingSeason: false,
-        activityLevel: 'Normal',
-        threatLevel: 'Low',
-        recommendation: 'Continue regular monitoring',
-        confidence: 'Low - No species data available'
-      };
+  /**
+   * Predict seasonal behavior for a species using AI
+   * @param {string} species - Species name
+   * @param {number} month - Month number (1-12)
+   * @returns {Promise<Object>} Prediction data
+   */
+  static async predictSeasonalBehavior(species, month) {
+    try {
+      return await SeasonalBehaviorAPI.predictSeasonalBehavior(species, month);
+    } catch (error) {
+      console.warn(`AI prediction failed for ${species} month ${month}:`, error);
+      return SeasonalBehaviorAPI.getFallbackPrediction();
     }
-
-    const behavior = patterns.behaviorByMonth[month];
-    const isBreeding = patterns.breedingSeason.months.includes(month);
-    const isBreedingPeak = patterns.breedingSeason.peak === month;
-    
-    let activityLevel = 'Normal';
-    if (patterns.activePeriods.high.includes(month)) activityLevel = 'High';
-    else if (patterns.activePeriods.low.includes(month)) activityLevel = 'Low';
-
-    let threatLevel = 'Moderate';
-    if (patterns.threatLevels.high.includes(month)) threatLevel = 'High';
-    else if (patterns.threatLevels.low.includes(month)) threatLevel = 'Low';
-
-    const recommendation = this.generateRecommendation(behavior, activityLevel, isBreeding, threatLevel);
-
-    return {
-      primaryBehavior: behavior,
-      breedingSeason: isBreeding,
-      breedingPeak: isBreedingPeak,
-      activityLevel,
-      threatLevel,
-      migrationTendency: patterns.migrationTendency,
-      recommendation,
-      confidence: 'High - Based on species biology'
-    };
   }
-  */
 
   /**
    * Generate monitoring recommendations
@@ -268,11 +394,11 @@ class TemporalAnalysisService {
   */
 
   /**
-   * Generate temporal insights for current period
+   * Generate temporal insights for current period using AI predictions
    * @param {Array} animals - Array of animal records
-   * @returns {Array} Array of insights
+   * @returns {Promise<Array>} Array of insights
    */
-  static generateTemporalInsights(animals) {
+  static async generateTemporalInsights(animals) {
     const insights = [];
     const currentMonth = new Date().getMonth() + 1;
     const currentSeason = this.getSeason(new Date());
@@ -289,31 +415,75 @@ class TemporalAnalysisService {
       speciesCounts[animal.name] = (speciesCounts[animal.name] || 0) + (animal.count || 1);
     });
 
-    // Generate insights for each species
-    Object.keys(speciesCounts).forEach(species => {
-      // TEMPORARILY HIDDEN - Prediction functionality
-      // const prediction = this.predictSeasonalBehavior(species, currentMonth);
-      const prediction = {
-        primaryBehavior: 'normal_activity',
-        breedingSeason: false,
-        activityLevel: 'Normal',
-        threatLevel: 'Low',
-        recommendation: 'Continue regular monitoring',
-        confidence: 'Temporarily disabled'
-      };
-      const alertLevel = this.calculateAlertLevel(species, speciesCounts[species], currentMonth);
+    // Prepare batch predictions
+    const predictionRequests = Object.keys(speciesCounts).map(species => ({
+      species,
+      month: currentMonth
+    }));
+
+    try {
+      // Test connectivity first
+      const isConnected = await SeasonalBehaviorAPI.testConnectivity();
+      if (!isConnected) {
+        throw new Error('Backend service is not reachable');
+      }
+
+      // Get AI predictions for all species
+      const predictionResults = await SeasonalBehaviorAPI.batchPredict(predictionRequests);
       
-      insights.push({
-        species,
-        currentCount: speciesCounts[species],
-        season: currentSeason,
-        month: currentMonth,
-        prediction,
-        alertLevel,
-        trend: this.calculateTrend(animals, species),
-        lastSeen: this.getLastSeenDate(animals, species)
+      if (!predictionResults || predictionResults.length === 0) {
+        throw new Error('No prediction results returned from AI service');
+      }
+      
+      // Generate insights for each species
+      predictionResults.forEach(result => {
+        if (!result || !result.species) {
+          console.warn('Invalid prediction result:', result);
+          return;
+        }
+        
+        const species = result.species;
+        const prediction = result.prediction || SeasonalBehaviorAPI.getFallbackPrediction();
+        
+        // Calculate alert level using AI prediction
+        const alertLevel = this.calculateAlertLevelWithAI(
+          species, 
+          speciesCounts[species], 
+          currentMonth, 
+          prediction
+        );
+        
+        insights.push({
+          species,
+          currentCount: speciesCounts[species],
+          season: currentSeason,
+          month: currentMonth,
+          prediction,
+          alertLevel,
+          trend: this.calculateTrend(animals, species),
+          lastSeen: this.getLastSeenDate(animals, species)
+        });
       });
-    });
+    } catch (error) {
+      console.warn('AI predictions failed, using fallback:', error);
+      
+      // Fallback to basic insights without AI predictions
+      Object.keys(speciesCounts).forEach(species => {
+        const prediction = SeasonalBehaviorAPI.getFallbackPrediction();
+        const alertLevel = this.calculateBasicAlertLevel(species, speciesCounts[species]);
+        
+        insights.push({
+          species,
+          currentCount: speciesCounts[species],
+          season: currentSeason,
+          month: currentMonth,
+          prediction,
+          alertLevel,
+          trend: this.calculateTrend(animals, species),
+          lastSeen: this.getLastSeenDate(animals, species)
+        });
+      });
+    }
 
     // Sort by alert level and count
     return insights.sort((a, b) => {
@@ -323,22 +493,26 @@ class TemporalAnalysisService {
   }
 
   /**
-   * Calculate alert level based on species patterns and current data
+   * Calculate alert level using AI prediction data
    * @param {string} species - Species name
    * @param {number} count - Current count
    * @param {number} month - Current month
+   * @param {Object} prediction - AI prediction result
    * @returns {string} Alert level
    */
-  static calculateAlertLevel(species, count, month) {
-    const patterns = SPECIES_SEASONAL_PATTERNS[species];
-    if (!patterns) return 'Low';
-
+  static calculateAlertLevelWithAI(species, count, month, prediction) {
     let alertLevel = 'Low';
     
-    // Check threat level for the month
-    if (patterns.threatLevels.high.includes(month)) {
+    // Ensure prediction exists and has the required properties
+    if (!prediction) {
+      return this.calculateBasicAlertLevel(species, count);
+    }
+
+    // Base alert level on AI threat prediction
+    const threatLevel = (prediction.threatLevel || 'Low').toLowerCase();
+    if (threatLevel === 'high') {
       alertLevel = 'High';
-    } else if (patterns.threatLevels.moderate.includes(month)) {
+    } else if (threatLevel === 'moderate' || threatLevel === 'medium') {
       alertLevel = 'Medium';
     }
 
@@ -350,10 +524,38 @@ class TemporalAnalysisService {
     }
 
     // Breeding season increases alert level
-    if (patterns.breedingSeason.months.includes(month)) {
+    if (prediction.breedingSeason === true) {
       const levels = ['Low', 'Medium', 'High', 'Critical'];
       const currentIndex = levels.indexOf(alertLevel);
       alertLevel = levels[Math.min(currentIndex + 1, 3)];
+    }
+
+    // Population peak periods need more attention
+    if (prediction.populationPeak) {
+      const levels = ['Low', 'Medium', 'High', 'Critical'];
+      const currentIndex = levels.indexOf(alertLevel);
+      alertLevel = levels[Math.min(currentIndex + 1, 3)];
+    }
+
+    return alertLevel;
+  }
+
+  /**
+   * Calculate basic alert level without AI (fallback)
+   * @param {string} species - Species name
+   * @param {number} count - Current count
+   * @returns {string} Alert level
+   */
+  static calculateBasicAlertLevel(species, count) {
+    let alertLevel = 'Low';
+    
+    // Simple population-based alert level
+    if (count < 5) {
+      alertLevel = 'Medium';
+    } else if (count < 2) {
+      alertLevel = 'High';
+    } else if (count > 50) {
+      alertLevel = 'Low'; // High population, less concern
     }
 
     return alertLevel;
@@ -411,6 +613,31 @@ class TemporalAnalysisService {
   }
 
   /**
+   * Check if AI service is available
+   * @returns {Promise<Object>} AI service status
+   */
+  static async getAIServiceStatus() {
+    try {
+      return await SeasonalBehaviorAPI.checkHealth();
+    } catch (error) {
+      return { status: 'error', modelsLoaded: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get list of species supported by the AI model
+   * @returns {Promise<Array>} Array of supported species
+   */
+  static async getSupportedSpecies() {
+    try {
+      return await SeasonalBehaviorAPI.getSupportedSpecies();
+    } catch (error) {
+      console.warn('Failed to get supported species:', error);
+      return ['Tiger', 'Elephant', 'Leopard', 'Rhinoceros']; // fallback
+    }
+  }
+
+  /**
    * Generate migration pattern analysis
    * @param {Array} animals - Array of animal records
    * @returns {Object} Migration patterns by species
@@ -423,7 +650,7 @@ class TemporalAnalysisService {
         patterns[animal.name] = {
           locations: {},
           movementHistory: [],
-          migrationTendency: SPECIES_SEASONAL_PATTERNS[animal.name]?.migrationTendency || 'unknown'
+          migrationTendency: 'unknown' // Will be determined by AI if available
         };
       }
       
@@ -479,4 +706,6 @@ class TemporalAnalysisService {
   }
 }
 
+// Export both classes for external access
+export { SeasonalBehaviorAPI };
 export default TemporalAnalysisService;

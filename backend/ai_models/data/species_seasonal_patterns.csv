@@ -1,0 +1,121 @@
+species,month,breeding_season,breeding_peak,activity_level,threat_level,migration_tendency,weather_preference,primary_behavior,population_peak
+Tiger,1,1,0,normal,moderate,territorial,cool_dry,breeding,0
+Tiger,2,1,0,normal,moderate,territorial,cool_dry,breeding,0
+Tiger,3,0,0,high,low,territorial,cool_dry,territorial_marking,0
+Tiger,4,0,0,high,low,territorial,cool_dry,hunting_peak,1
+Tiger,5,0,0,normal,low,territorial,cool_dry,normal_activity,0
+Tiger,6,0,0,low,high,territorial,cool_dry,heat_avoidance,0
+Tiger,7,0,0,low,high,territorial,cool_dry,heat_avoidance,0
+Tiger,8,0,0,low,high,territorial,cool_dry,monsoon_adaptation,0
+Tiger,9,0,0,high,low,territorial,cool_dry,increased_activity,0
+Tiger,10,0,0,high,low,territorial,cool_dry,territorial_expansion,1
+Tiger,11,1,0,normal,moderate,territorial,cool_dry,pre_breeding,0
+Tiger,12,1,1,normal,moderate,territorial,cool_dry,breeding_peak,0
+Elephant,1,0,0,low,high,seasonal,moderate_wet,dry_season_survival,0
+Elephant,2,0,0,low,high,seasonal,moderate_wet,water_source_congregation,0
+Elephant,3,0,0,normal,moderate,seasonal,moderate_wet,pre_monsoon_movement,0
+Elephant,4,0,0,high,low,seasonal,moderate_wet,foraging_intensive,0
+Elephant,5,0,0,high,low,seasonal,moderate_wet,social_gathering,0
+Elephant,6,1,0,high,low,seasonal,moderate_wet,breeding_preparation,0
+Elephant,7,1,1,normal,low,seasonal,moderate_wet,breeding_peak,1
+Elephant,8,1,0,normal,low,seasonal,moderate_wet,breeding_active,0
+Elephant,9,1,0,normal,moderate,seasonal,moderate_wet,post_breeding_care,0
+Elephant,10,0,0,high,low,seasonal,moderate_wet,feeding_intensive,1
+Elephant,11,0,0,high,moderate,seasonal,moderate_wet,social_bonding,0
+Elephant,12,0,0,low,high,seasonal,moderate_wet,dry_season_preparation,0
+Leopard,1,1,0,high,low,opportunistic,cool_moderate,breeding_active,0
+Leopard,2,1,1,high,low,opportunistic,cool_moderate,breeding_peak,1
+Leopard,3,0,0,high,low,opportunistic,cool_moderate,territorial_defense,0
+Leopard,4,0,0,normal,moderate,opportunistic,cool_moderate,hunting_adaptation,0
+Leopard,5,1,0,normal,moderate,opportunistic,cool_moderate,secondary_breeding,0
+Leopard,6,1,0,low,high,opportunistic,cool_moderate,heat_shelter,0
+Leopard,7,0,0,low,high,opportunistic,cool_moderate,nocturnal_increase,0
+Leopard,8,0,0,low,high,opportunistic,cool_moderate,survival_mode,0
+Leopard,9,0,0,normal,moderate,opportunistic,cool_moderate,activity_recovery,0
+Leopard,10,0,0,high,low,opportunistic,cool_moderate,territorial_expansion,0
+Leopard,11,0,0,high,low,opportunistic,cool_moderate,pre_winter_prep,1
+Leopard,12,0,0,high,low,opportunistic,cool_moderate,winter_adaptation,0
+Rhinoceros,1,0,0,normal,moderate,minimal,cool_wet,wallowing_frequent,0
+Rhinoceros,2,1,0,high,low,minimal,cool_wet,breeding_start,0
+Rhinoceros,3,1,1,high,low,minimal,cool_wet,breeding_peak,1
+Rhinoceros,4,1,0,high,low,minimal,cool_wet,post_breeding,0
+Rhinoceros,5,1,0,normal,low,minimal,cool_wet,grazing_intensive,0
+Rhinoceros,6,0,0,low,high,minimal,cool_wet,heat_stress,0
+Rhinoceros,7,0,0,low,high,minimal,cool_wet,mud_wallowing,0
+Rhinoceros,8,0,0,low,high,minimal,cool_wet,shade_seeking,0
+Rhinoceros,9,0,0,low,moderate,minimal,cool_wet,monsoon_relief,0
+Rhinoceros,10,0,0,high,low,minimal,cool_wet,feeding_recovery,0
+Rhinoceros,11,0,0,high,low,minimal,cool_wet,social_interaction,1
+Rhinoceros,12,0,0,normal,moderate,minimal,cool_wet,winter_grazing,0
+Orangutan,1,0,0,normal,moderate,minimal,tropical_humid,social_bonding,0
+Orangutan,2,1,0,normal,moderate,minimal,tropical_humid,breeding_start,0
+Orangutan,3,1,1,high,low,minimal,tropical_humid,breeding_peak,1
+Orangutan,4,1,0,high,low,minimal,tropical_humid,nesting_intensive,0
+Orangutan,5,0,0,high,low,minimal,tropical_humid,foraging_peak,0
+Orangutan,6,0,0,normal,moderate,minimal,tropical_humid,canopy_movement,0
+Orangutan,7,0,0,low,high,minimal,tropical_humid,heat_rest,0
+Orangutan,8,0,0,low,high,minimal,tropical_humid,fruit_seeking,0
+Orangutan,9,0,0,normal,moderate,minimal,tropical_humid,territory_marking,0
+Orangutan,10,0,0,high,low,minimal,tropical_humid,feeding_intensive,1
+Orangutan,11,0,0,normal,moderate,minimal,tropical_humid,pre_dry_season,0
+Orangutan,12,0,0,normal,moderate,minimal,tropical_humid,dry_adaptation,0
+Giant Panda,1,0,0,low,moderate,minimal,cool_humid,winter_rest,0
+Giant Panda,2,1,0,normal,low,minimal,cool_humid,breeding_preparation,0
+Giant Panda,3,1,1,high,low,minimal,cool_humid,breeding_peak,1
+Giant Panda,4,1,0,high,low,minimal,cool_humid,bamboo_intensive,0
+Giant Panda,5,0,0,high,low,minimal,cool_humid,foraging_peak,1
+Giant Panda,6,0,0,normal,moderate,minimal,cool_humid,summer_feeding,0
+Giant Panda,7,0,0,low,high,minimal,cool_humid,heat_avoidance,0
+Giant Panda,8,0,0,low,high,minimal,cool_humid,monsoon_shelter,0
+Giant Panda,9,0,0,normal,moderate,minimal,cool_humid,autumn_feeding,0
+Giant Panda,10,0,0,high,low,minimal,cool_humid,winter_preparation,0
+Giant Panda,11,0,0,normal,moderate,minimal,cool_humid,den_preparation,0
+Giant Panda,12,0,0,low,moderate,minimal,cool_humid,winter_dormancy,0
+Polar Bear,1,0,0,low,high,seasonal,arctic_cold,ice_hunting,0
+Polar Bear,2,1,0,normal,moderate,seasonal,arctic_cold,breeding_search,0
+Polar Bear,3,1,1,high,low,seasonal,arctic_cold,breeding_peak,1
+Polar Bear,4,1,0,high,low,seasonal,arctic_cold,denning,0
+Polar Bear,5,0,0,high,low,seasonal,arctic_cold,cub_rearing,1
+Polar Bear,6,0,0,normal,moderate,seasonal,arctic_cold,ice_edge_hunting,0
+Polar Bear,7,0,0,low,high,seasonal,arctic_cold,summer_fasting,0
+Polar Bear,8,0,0,low,high,seasonal,arctic_cold,shoreline_foraging,0
+Polar Bear,9,0,0,normal,moderate,seasonal,arctic_cold,ice_formation_wait,0
+Polar Bear,10,0,0,high,low,seasonal,arctic_cold,hunting_preparation,0
+Polar Bear,11,0,0,normal,moderate,seasonal,arctic_cold,territory_establishment,0
+Polar Bear,12,0,0,normal,moderate,seasonal,arctic_cold,winter_hunting,0
+Mountain Gorilla,1,0,0,normal,moderate,minimal,mountain_cool,group_bonding,0
+Mountain Gorilla,2,1,0,normal,low,minimal,mountain_cool,breeding_start,0
+Mountain Gorilla,3,1,1,high,low,minimal,mountain_cool,breeding_peak,1
+Mountain Gorilla,4,1,0,high,low,minimal,mountain_cool,territorial_defense,0
+Mountain Gorilla,5,0,0,high,low,minimal,mountain_cool,foraging_intensive,1
+Mountain Gorilla,6,0,0,normal,moderate,minimal,mountain_cool,social_learning,0
+Mountain Gorilla,7,0,0,low,high,minimal,mountain_cool,shelter_seeking,0
+Mountain Gorilla,8,0,0,low,high,minimal,mountain_cool,reduced_activity,0
+Mountain Gorilla,9,0,0,normal,moderate,minimal,mountain_cool,feeding_recovery,0
+Mountain Gorilla,10,0,0,high,low,minimal,mountain_cool,group_movement,0
+Mountain Gorilla,11,0,0,normal,moderate,minimal,mountain_cool,winter_preparation,0
+Mountain Gorilla,12,0,0,low,moderate,minimal,mountain_cool,conservation_energy,0
+Snow Leopard,1,0,0,high,low,territorial,alpine_cold,winter_hunting,0
+Snow Leopard,2,1,0,high,low,territorial,alpine_cold,breeding_preparation,1
+Snow Leopard,3,1,1,high,low,territorial,alpine_cold,breeding_peak,1
+Snow Leopard,4,1,0,high,low,territorial,alpine_cold,denning,0
+Snow Leopard,5,0,0,high,low,territorial,alpine_cold,cub_rearing,0
+Snow Leopard,6,0,0,normal,moderate,territorial,alpine_cold,prey_following,0
+Snow Leopard,7,0,0,normal,moderate,territorial,alpine_cold,territory_patrol,0
+Snow Leopard,8,0,0,normal,moderate,territorial,alpine_cold,summer_hunting,0
+Snow Leopard,9,0,0,high,low,territorial,alpine_cold,autumn_preparation,0
+Snow Leopard,10,0,0,high,low,territorial,alpine_cold,winter_preparation,0
+Snow Leopard,11,0,0,normal,moderate,territorial,alpine_cold,territorial_marking,0
+Snow Leopard,12,0,0,normal,moderate,territorial,alpine_cold,survival_mode,0
+Chimpanzee,1,0,0,normal,moderate,territorial,tropical_dry,group_dynamics,0
+Chimpanzee,2,1,0,high,low,territorial,tropical_dry,breeding_start,0
+Chimpanzee,3,1,1,high,low,territorial,tropical_dry,breeding_peak,1
+Chimpanzee,4,1,0,high,low,territorial,tropical_dry,territorial_expansion,0
+Chimpanzee,5,0,0,high,low,territorial,tropical_dry,foraging_intensive,1
+Chimpanzee,6,0,0,normal,moderate,territorial,tropical_dry,tool_use_peak,0
+Chimpanzee,7,0,0,low,high,territorial,tropical_dry,heat_shelter,0
+Chimpanzee,8,0,0,low,high,territorial,tropical_dry,reduced_activity,0
+Chimpanzee,9,0,0,normal,moderate,territorial,tropical_dry,social_learning,0
+Chimpanzee,10,0,0,high,low,territorial,tropical_dry,group_cohesion,0
+Chimpanzee,11,0,0,normal,moderate,territorial,tropical_dry,winter_adaptation,0
+Chimpanzee,12,0,0,normal,moderate,territorial,tropical_dry,year_end_bonding,0
