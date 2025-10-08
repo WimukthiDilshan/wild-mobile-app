@@ -70,6 +70,8 @@ const AnalystScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [exportLoading, setExportLoading] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [animalsLoading, setAnimalsLoading] = useState(false);
   
   // Temporal Analysis States
   const [seasonalAnalysis, setSeasonalAnalysis] = useState(null);
@@ -349,10 +351,15 @@ const AnalystScreen = ({ navigation }) => {
   };
 
   const handleDownloadExcel = async (type = 'animals') => {
-    if (exportLoading) return; // Prevent multiple simultaneous downloads
+    const isAnalytics = type === 'analytics';
+    if (isAnalytics ? analyticsLoading : animalsLoading) return; // Prevent multiple simultaneous downloads
     
     try {
-      setExportLoading(true);
+      if (isAnalytics) {
+        setAnalyticsLoading(true);
+      } else {
+        setAnimalsLoading(true);
+      }
       
       // Request storage permission
       const hasPermission = await requestStoragePermission();
@@ -428,7 +435,11 @@ const AnalystScreen = ({ navigation }) => {
         ]
       );
     } finally {
-      setExportLoading(false);
+      if (isAnalytics) {
+        setAnalyticsLoading(false);
+      } else {
+        setAnimalsLoading(false);
+      }
     }
   };
 
@@ -461,9 +472,9 @@ const AnalystScreen = ({ navigation }) => {
         
         <View style={styles.exportButtons}>
           <TouchableOpacity
-            style={[styles.exportButton, exportLoading && styles.exportButtonDisabled]}
+            style={[styles.exportButton, analyticsLoading && styles.exportButtonDisabled]}
             onPress={() => handleDownloadExcel('analytics')}
-            disabled={exportLoading}
+            disabled={analyticsLoading}
             activeOpacity={0.8}>
             <View style={styles.exportIcon}>
               <Text style={styles.exportIconText}>📈</Text>
@@ -471,11 +482,11 @@ const AnalystScreen = ({ navigation }) => {
             <View style={styles.exportContent}>
               <Text style={styles.exportButtonTitle}>Analytics Report</Text>
               <Text style={styles.exportButtonSubtitle}>
-                {exportLoading ? 'Creating file...' : 'Complete analytics with charts data'}
+                {analyticsLoading ? 'Creating file...' : 'Complete analytics with charts data'}
               </Text>
             </View>
             <View style={styles.downloadArrow}>
-              {exportLoading ? (
+              {analyticsLoading ? (
                 <ActivityIndicator size="small" color="#4CAF50" />
               ) : (
                 <Text style={styles.downloadArrowText}>⬇️</Text>
@@ -484,9 +495,9 @@ const AnalystScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.exportButton, exportLoading && styles.exportButtonDisabled]}
+            style={[styles.exportButton, animalsLoading && styles.exportButtonDisabled]}
             onPress={() => handleDownloadExcel('animals')}
-            disabled={exportLoading}
+            disabled={animalsLoading}
             activeOpacity={0.8}>
             <View style={styles.exportIcon}>
               <Text style={styles.exportIconText}>🦁</Text>
@@ -494,11 +505,11 @@ const AnalystScreen = ({ navigation }) => {
             <View style={styles.exportContent}>
               <Text style={styles.exportButtonTitle}>Animals Data</Text>
               <Text style={styles.exportButtonSubtitle}>
-                {exportLoading ? 'Creating file...' : 'Individual animal records & details'}
+                {animalsLoading ? 'Creating file...' : 'Individual animal records & details'}
               </Text>
             </View>
             <View style={styles.downloadArrow}>
-              {exportLoading ? (
+              {animalsLoading ? (
                 <ActivityIndicator size="small" color="#4CAF50" />
               ) : (
                 <Text style={styles.downloadArrowText}>⬇️</Text>
@@ -619,11 +630,11 @@ const AnalystScreen = ({ navigation }) => {
         
         {/* Quick Export Button for Animals Tab */}
         <TouchableOpacity
-          style={[styles.quickExportButton, exportLoading && styles.exportButtonDisabled]}
+          style={[styles.quickExportButton, animalsLoading && styles.exportButtonDisabled]}
           onPress={() => handleDownloadExcel('animals')}
-          disabled={exportLoading}
+          disabled={animalsLoading}
           activeOpacity={0.8}>
-          {exportLoading ? (
+          {animalsLoading ? (
             <>
               <ActivityIndicator size="small" color="white" style={{marginRight: 8}} />
               <Text style={styles.quickExportText}>Creating File...</Text>
