@@ -24,6 +24,7 @@ import UserPreferences from './src/screens/UserPreferencesScreen';
 import RecommendationsScreen from './src/screens/RecommendationsScreen';
 import SafariStartScreen from './src/screens/SafariStartScreen';
 import SafariMapScreen from './src/screens/SafariMapScreen';
+import ParkDetailsScreen from './src/screens/ParkDetailsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -177,6 +178,13 @@ const AppNavigator = () => {
         component={SafariMapScreen} 
         options={{ headerShown: false }}
       />
+{hasPermission('canGetParkDetails') && (
+        <Stack.Screen 
+          name="ParkDetails" 
+          component={ParkDetailsScreen} 
+          options={{ headerShown: false }}
+        />
+      )}
 
     </Stack.Navigator>
   );

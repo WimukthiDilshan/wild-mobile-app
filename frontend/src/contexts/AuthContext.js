@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       canDeleteParks: true,
       canAccessParkManagement: true,
       canGetPreferences: true,
+      canGetParkDetails: true,
     },
     [USER_ROLES.DRIVER]: {
       canViewAnimals: true,
@@ -74,6 +75,7 @@ export const AuthProvider = ({ children }) => {
       canEditParks: false,
       canDeleteParks: false,
       canAccessParkManagement: true,
+      
     },
     [USER_ROLES.RESEARCHER]: {
       canViewAnimals: true,

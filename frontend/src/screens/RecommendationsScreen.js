@@ -57,7 +57,11 @@ useEffect(() => {
 }, []);
 
   const renderPark = ({ item, index }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.85}
+      onPress={() => navigation.navigate("ParkDetails", { parkId: item.id })}
+    >
       {/* Park image */}
       <Image
         source={{
@@ -115,7 +119,7 @@ useEffect(() => {
           <Text style={styles.description}>{item.description}</Text>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
