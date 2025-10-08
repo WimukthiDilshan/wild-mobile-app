@@ -197,6 +197,7 @@ class TemporalAnalysisService {
    * @param {number} month - Month number (1-12)
    * @returns {Object} Prediction data
    */
+  /* TEMPORARILY HIDDEN - Seasonal Behavior Prediction
   static predictSeasonalBehavior(species, month) {
     const patterns = SPECIES_SEASONAL_PATTERNS[species];
     if (!patterns) {
@@ -235,6 +236,7 @@ class TemporalAnalysisService {
       confidence: 'High - Based on species biology'
     };
   }
+  */
 
   /**
    * Generate monitoring recommendations
@@ -244,6 +246,7 @@ class TemporalAnalysisService {
    * @param {string} threat - Threat level
    * @returns {string} Recommendation
    */
+  /* TEMPORARILY HIDDEN - Recommendation Generation
   static generateRecommendation(behavior, activity, breeding, threat) {
     if (breeding && threat === 'High') {
       return 'CRITICAL: Increase monitoring - breeding season with high threat level';
@@ -262,6 +265,7 @@ class TemporalAnalysisService {
     }
     return 'Continue standard monitoring protocols';
   }
+  */
 
   /**
    * Generate temporal insights for current period
@@ -287,7 +291,16 @@ class TemporalAnalysisService {
 
     // Generate insights for each species
     Object.keys(speciesCounts).forEach(species => {
-      const prediction = this.predictSeasonalBehavior(species, currentMonth);
+      // TEMPORARILY HIDDEN - Prediction functionality
+      // const prediction = this.predictSeasonalBehavior(species, currentMonth);
+      const prediction = {
+        primaryBehavior: 'normal_activity',
+        breedingSeason: false,
+        activityLevel: 'Normal',
+        threatLevel: 'Low',
+        recommendation: 'Continue regular monitoring',
+        confidence: 'Temporarily disabled'
+      };
       const alertLevel = this.calculateAlertLevel(species, speciesCounts[species], currentMonth);
       
       insights.push({

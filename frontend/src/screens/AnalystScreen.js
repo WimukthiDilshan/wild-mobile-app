@@ -846,6 +846,7 @@ const AnalystScreen = ({ navigation }) => {
         </View>
 
         {/* Species Predictions */}
+        {/* TEMPORARILY HIDDEN - Species Behavior Predictions Section
         <View style={styles.predictionsCard}>
           <Text style={styles.sectionTitle}>🔮 Species Behavior Predictions</Text>
           {temporalInsights.map((insight, index) => (
@@ -892,6 +893,7 @@ const AnalystScreen = ({ navigation }) => {
             </View>
           ))}
         </View>
+        */}
 
         {/* Migration Patterns */}
         <View style={styles.migrationCard}>
