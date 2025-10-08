@@ -13,6 +13,7 @@ import {
   Animated,
 } from 'react-native';
 import ApiService from '../services/ApiService';
+import OfflineQueue from '../services/OfflineQueue';
 import { useAuth } from '../contexts/AuthContext';
 import LocationService from '../services/LocationService';
 import WildlifeMapPicker from '../components/WildlifeMapPicker';
@@ -24,9 +25,8 @@ const AddPoachingScreen = ({ navigation }) => {
     species: '',
     location: '',
     date: '',
-    severity: 'Medium',
+    severity: '',
     description: '',
-    reportedBy: '',
   });
   const [loading, setLoading] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
@@ -34,18 +34,14 @@ const AddPoachingScreen = ({ navigation }) => {
   const [isGettingGPS, setIsGettingGPS] = useState(false);
   const [evidenceUrls, setEvidenceUrls] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [emergencyPending, setEmergencyPending] = useState(false);
   // Evidence/media feature removed — simplified UI (no native modules required)
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(300)).current;
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
 
-  // Prefill reportedBy with logged-in user info when available
-  React.useEffect(() => {
-    const name = userData?.displayName || userData?.email || user?.email || '';
-    if (name) {
-      setFormData(prev => ({ ...prev, reportedBy: prev.reportedBy || name }));
-    }
-  }, [userData, user]);
+  // ...existing code... (removed reportedBy prefill for cleaner UX)
 
   // Check if user has permission to add poaching reports
   if (!rolePermissions?.canAddData) {
@@ -110,6 +106,49 @@ const AddPoachingScreen = ({ navigation }) => {
     
     handleInputChange('location', locationString);
     setShowMapPicker(false);
+    // If the emergency flow is waiting for a manual map selection, auto-send
+    if (emergencyPending) {
+      // send emergency using this selected location
+      performEmergencySendWithLoc(selectedLocation);
+    }
+  };
+
+  // Send an emergency report using a provided location object (from map or fallback)
+  const performEmergencySendWithLoc = async (loc) => {
+    setEmergencyLoading(true);
+    setEmergencyPending(false);
+    let emergencyData = null;
+    try {
+      const coordsStr = loc ? `${loc.name || loc.description || ''} (${loc.formattedCoords || (loc.latitude && loc.longitude ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '')})` : 'Location unknown';
+      const dateString = new Date().toISOString().slice(0,10);
+      emergencyData = {
+        species: '🚨 Emergency Alert',
+        location: coordsStr,
+        date: dateString,
+        severity: 'High',
+        description: 'One-tap emergency alert (map-selected)',
+        evidence: [],
+        emergency: true,
+        // Include reporter metadata so server stores who reported the incident.
+        reportedBy: userData?.displayName || userData?.email || user?.email || 'Unknown User',
+        reportedByUserId: userData?.uid || user?.uid || null,
+        reportedByRole: userData?.role || 'unknown',
+        reportedAt: new Date().toISOString(),
+      };
+
+      await ApiService.reportPoachingIncident(emergencyData);
+      Alert.alert('🚨 Sent', 'Emergency alert sent successfully');
+    } catch (err) {
+      console.error('Emergency send failed (map):', err);
+      const queued = await OfflineQueue.enqueueIncident({ ...(emergencyData || {}), _emergencyLocal: true });
+      if (queued) {
+        Alert.alert('Offline', 'No network — emergency saved and will be sent when connectivity returns.');
+      } else {
+        Alert.alert('Error', 'Failed to send emergency alert. Please try again.');
+      }
+    } finally {
+      setEmergencyLoading(false);
+    }
   };
 
   
@@ -121,6 +160,10 @@ const AddPoachingScreen = ({ navigation }) => {
     }
     if (!formData.location.trim()) {
       Alert.alert('Error', 'Please enter the location');
+      return false;
+    }
+    if (!formData.severity || !formData.severity.trim()) {
+      Alert.alert('Error', 'Please select a severity level');
       return false;
     }
     return true;
@@ -141,10 +184,10 @@ const AddPoachingScreen = ({ navigation }) => {
         ...formData,
         date: dateString,
         evidence: evidenceUrls,
-        // Add logged-in user information
-        reportedBy: formData.reportedBy || userData?.displayName || userData?.email || user?.email || 'Unknown User',
-        reportedByUserId: userData?.uid || user?.uid || null,
-        reportedByRole: userData?.role || 'unknown',
+              // Include reporter metadata so server stores who reported the incident.
+              reportedBy: userData?.displayName || userData?.email || user?.email || 'Unknown User',
+              reportedByUserId: userData?.uid || user?.uid || null,
+              reportedByRole: userData?.role || 'unknown',
         reportedAt: new Date().toISOString(),
       };
 
@@ -161,10 +204,9 @@ const AddPoachingScreen = ({ navigation }) => {
               setFormData({
                 species: '',
                 location: '',
-                date: '',
-                severity: 'Medium',
+                  date: '',
+                  severity: '',
                 description: '',
-                reportedBy: '',
               });
               setEvidenceUrls([]);
               navigation.goBack();
@@ -173,12 +215,143 @@ const AddPoachingScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to report incident. Please try again.');
       console.error('Error reporting incident:', error);
+      // Attempt to enqueue for later if network or server error
+      const queued = await OfflineQueue.enqueueIncident(poachingData);
+      if (queued) {
+        Alert.alert('Offline', 'You are currently offline or the server failed. The report has been saved and will be sent automatically when connectivity returns.');
+        // reset form locally
+        setFormData({
+          species: '',
+          location: '',
+          date: '',
+          severity: '',
+          description: '',
+        });
+        setEvidenceUrls([]);
+        navigation.goBack();
+        return;
+      }
+      Alert.alert('Error', 'Failed to report incident. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Show confirmation before actually submitting
+  const confirmSubmit = () => {
+    Alert.alert(
+      'Confirm Report',
+      'Are you sure you want to submit this poaching report?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Submit', onPress: () => handleSubmit() }
+      ]
+    );
+  };
+
+  // Reusable emergency trigger used by header button and FAB
+  const triggerEmergency = () => {
+    Alert.alert(
+      '🚨 Send Emergency Alert?',
+      'Send an immediate high-priority poaching alert to nearby officers?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send', onPress: async () => {
+          setEmergencyLoading(true);
+          let emergencyData = null;
+          try {
+            let loc = locationData;
+            let usedSource = loc ? (loc.source || 'Map') : null;
+
+            if (!loc) {
+              const getWithTimeout = (ms) => Promise.race([
+                LocationService.getCurrentLocation(),
+                new Promise((resolve) => setTimeout(() => resolve(null), ms)),
+              ]);
+
+              try {
+                const gps = await getWithTimeout(15000);
+                if (gps) {
+                  loc = { ...gps, source: 'GPS' };
+                  usedSource = 'GPS';
+                } else if (locationData) {
+                  loc = locationData;
+                  usedSource = 'Map (fallback)';
+                } else {
+                  usedSource = 'none';
+                  loc = null;
+                  setEmergencyLoading(false);
+                  Alert.alert(
+                    '🚨 GPS timed out',
+                    'Unable to obtain GPS fix. Opening the map so you can tap to select the incident location.',
+                    [{ text: 'OK', onPress: () => { setEmergencyPending(true); setTimeout(() => setShowMapPicker(true), 250); } }]
+                  );
+                  return;
+                }
+              } catch (gpsErr) {
+                console.warn('GPS error during emergency attempt:', gpsErr);
+                if (locationData) {
+                  loc = locationData;
+                  usedSource = 'Map (fallback)';
+                } else {
+                  loc = null;
+                  usedSource = 'none';
+                  setEmergencyLoading(false);
+                  Alert.alert(
+                    '🚨 GPS error',
+                    'Unable to obtain GPS location. Opening the map so you can select a location manually.',
+                    [{ text: 'OK', onPress: () => { setEmergencyPending(true); setTimeout(() => setShowMapPicker(true), 250); } }]
+                  );
+                  return;
+                }
+              }
+            }
+
+            const coordsStr = loc ? `${loc.description || ''} (${loc.formattedCoords || (loc.latitude && loc.longitude ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '')})` : 'Location unknown';
+            const dateString = new Date().toISOString().slice(0,10);
+            emergencyData = {
+              species: '🚨 Emergency Alert',
+              location: coordsStr,
+              date: dateString,
+              severity: 'High',
+              description: 'One-tap emergency alert',
+              evidence: [],
+              emergency: true,
+              // Include reporter metadata so server stores who reported the incident.
+              reportedBy: userData?.displayName || userData?.email || user?.email || 'Unknown User',
+              reportedByUserId: userData?.uid || user?.uid || null,
+              reportedByRole: userData?.role || 'unknown',
+              reportedAt: new Date().toISOString(),
+            };
+
+            if (usedSource === 'GPS') {
+              Alert.alert('🚨 Location', 'Using current GPS location for the emergency alert');
+            } else if (usedSource && usedSource.startsWith('Map')) {
+              Alert.alert('🚨 Location', 'Using map-selected location for the emergency alert');
+            } else {
+              Alert.alert('🚨 Location', 'No reliable location available — sending without precise coordinates');
+            }
+
+            await ApiService.reportPoachingIncident(emergencyData);
+            Alert.alert('🚨 Sent', 'Emergency alert sent successfully');
+          } catch (err) {
+            console.error('Emergency send failed:', err);
+            const queued = await OfflineQueue.enqueueIncident({ ...(emergencyData || {}), _emergencyLocal: true });
+            if (queued) {
+              Alert.alert('Offline', 'No network — emergency saved and will be sent when connectivity returns.');
+            } else {
+              Alert.alert('Error', 'Failed to send emergency alert. Please try again.');
+            }
+          } finally {
+            setEmergencyLoading(false);
+          }
+        }}
+      ]
+    );
+  };
+
+  // no header emergency button; primary emergency is the floating FAB
 
   return (
     <KeyboardAvoidingView 
@@ -186,7 +359,7 @@ const AddPoachingScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>🚨 Report Poaching Incident</Text>
+          <Text style={styles.headerTitle}>Report Poaching Incident</Text>
           <Text style={styles.headerSubtitle}>Help us protect wildlife</Text>
           <View style={styles.userInfoContainer}>
             <Text style={styles.roleEmoji}>
@@ -197,11 +370,22 @@ const AddPoachingScreen = ({ navigation }) => {
               {userData?.displayName || userData?.email || user?.email} ({userData?.role})
             </Text>
           </View>
+        
+        </View>
+        {/* Top one-tap emergency button */}
+        <View style={styles.emergencyTopWrap}>
+          <TouchableOpacity
+            style={[styles.emergencyButtonHeader, emergencyLoading && styles.disabledButton]}
+            onPress={triggerEmergency}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.emergencyButtonTextHeader}>{emergencyLoading ? 'Sending…' : '🚨 Emergency: One‑Tap Alert'}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Species *</Text>
+            <Text style={styles.label}>🐾 Species *</Text>
             <TextInput
               style={styles.input}
               value={formData.species}
@@ -280,28 +464,31 @@ const AddPoachingScreen = ({ navigation }) => {
           {/* Date is auto-filled to current date on submit (YYYY-MM-DD) */}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Severity Level</Text>
+            <Text style={styles.label}>⚠️ Severity Level</Text>
             <View style={styles.severityContainer}>
-              {severityOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.severityOption,
-                    formData.severity === option && styles.selectedSeverity,
-                    { backgroundColor: 
-                      option === 'High' ? '#F44336' : 
-                      option === 'Medium' ? '#FF9800' : '#4CAF50' 
-                    }
-                  ]}
-                  onPress={() => handleInputChange('severity', option)}>
-                  <Text style={styles.severityText}>{option}</Text>
-                </TouchableOpacity>
-              ))}
+              {severityOptions.map((option) => {
+                const emoji = option === 'High' ? '🔴' : option === 'Medium' ? '🟠' : '🟢';
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.severityOption,
+                      formData.severity === option && styles.selectedSeverity,
+                      { backgroundColor: 
+                        option === 'High' ? '#F44336' : 
+                        option === 'Medium' ? '#FF9800' : '#4CAF50' 
+                      }
+                    ]}
+                    onPress={() => handleInputChange('severity', option)}>
+                    <Text style={styles.severityText}>{`${emoji} ${option}`}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Description</Text>
+            <Text style={styles.label}>📝 Description</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={formData.description}
@@ -314,7 +501,7 @@ const AddPoachingScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Evidence (photos)</Text>
+            <Text style={styles.label}>🖼️ Evidence (photos)</Text>
             <ImageUploader
               onUpload={(updater) => {
                 // ImageUploader calls onUpload with an updater function
@@ -330,32 +517,26 @@ const AddPoachingScreen = ({ navigation }) => {
             )}
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Reported By</Text>
-            {/* Reported By is auto-filled from the logged-in user and not editable */}
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {formData.reportedBy || userData?.displayName || userData?.email || user?.email || 'Unknown'}
-              </Text>
-            </View>
-          </View>
+          {/* Reporter display removed to simplify UX */}
 
           {/* Evidence feature removed to avoid native build issues */}
 
-          <TouchableOpacity
-            style={[styles.submitButton, (loading || uploadingImages) && styles.disabledButton]}
-            onPress={handleSubmit}
-            disabled={loading || uploadingImages}>
-            <Text style={styles.submitButtonText}>
-              {loading ? 'Reporting...' : 'Report Incident'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.halfButton, styles.submitButton, (loading || uploadingImages) && styles.disabledButton]}
+              onPress={confirmSubmit}
+              disabled={loading || uploadingImages}>
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Reporting...' : 'Report Incident'}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => navigation.goBack()}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.halfButton, styles.cancelButton, (loading || uploadingImages) && styles.disabledButton]}
+              onPress={() => navigation.goBack()}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -366,6 +547,8 @@ const AddPoachingScreen = ({ navigation }) => {
         onLocationSelect={handleMapLocationSelect}
         initialLocation={locationData}
       />
+
+      {/* Top emergency button is used; floating FAB removed */}
     </KeyboardAvoidingView>
   );
 };
@@ -488,34 +671,51 @@ const styles = StyleSheet.create({
   },
   severityText: {
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '700',
     fontSize: 14,
+    lineHeight: 18,
   },
   submitButton: {
     backgroundColor: '#F44336',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
   },
   disabledButton: {
     backgroundColor: '#ccc',
   },
   submitButtonText: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   cancelButton: {
     backgroundColor: '#757575',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
   },
   cancelButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  halfButton: {
+    flex: 1,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   // Enhanced Location Styles
   locationMethodsContainer: {
@@ -603,6 +803,61 @@ const styles = StyleSheet.create({
   },
   readOnlyText: {
     color: '#333',
+    fontSize: 16,
+  },
+  emergencyFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 30,
+    backgroundColor: '#D32F2F',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 28,
+    minWidth: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  emergencyFabText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 16,
+  },
+  // Emergency button at top styles
+  emergencyTopWrap: {
+    marginHorizontal: 12,
+    marginTop: 12,
+    alignItems: 'center',
+    zIndex: 60,
+  },
+  emergencyContainerHeader: {
+    padding: 6,
+    backgroundColor: 'transparent',
+    marginHorizontal: 0,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyButtonHeader: {
+    backgroundColor: '#D32F2F',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 24,
+    minWidth: 180,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  emergencyButtonTextHeader: {
+    color: '#fff',
+    fontWeight: '800',
     fontSize: 16,
   },
 });

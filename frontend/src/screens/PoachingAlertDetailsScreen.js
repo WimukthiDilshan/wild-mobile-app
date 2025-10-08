@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Linking, Share } from 'react-native';
 import ApiService from '../services/ApiService';
 import firestore from '@react-native-firebase/firestore';
 import LocationService from '../services/LocationService';
@@ -96,7 +96,58 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
     );
   };
 
-  const date = currentIncident.date ? new Date(currentIncident.date) : (currentIncident.createdAt ? new Date(currentIncident.createdAt) : null);
+  // Robust date parsing: support Firestore Timestamp, {seconds,_seconds} objects, unix seconds, ms, and ISO strings
+  const parseIncidentDate = (value) => {
+    if (!value) return null;
+    // Firestore Timestamp with toDate()
+    if (typeof value === 'object') {
+      if (typeof value.toDate === 'function') {
+        try { return value.toDate(); } catch (e) { /* fall through */ }
+      }
+      // fields named seconds or _seconds
+      if ('seconds' in value && (typeof value.seconds === 'number' || typeof value.seconds === 'string')) {
+        const secs = Number(value.seconds);
+        const nanos = Number(value.nanoseconds || value.nanos || 0);
+        return new Date(secs * 1000 + Math.floor(nanos / 1e6));
+      }
+      if ('_seconds' in value && (typeof value._seconds === 'number' || typeof value._seconds === 'string')) {
+        const secs = Number(value._seconds);
+        const nanos = Number(value._nanoseconds || value._nanosecond || value._nanos || 0);
+        return new Date(secs * 1000 + Math.floor(nanos / 1e6));
+      }
+    }
+    // number: either seconds or milliseconds
+    if (typeof value === 'number') {
+      // milliseconds are typically > 1e12
+      if (value > 1e12) return new Date(value);
+      // otherwise treat as seconds
+      return new Date(value * 1000);
+    }
+    // string: try ISO parse
+    if (typeof value === 'string') {
+      // If string is date-only like YYYY-MM-DD or YYYY/MM/DD, construct a local date
+      const isoDateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const isoDateOnlySlash = value.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+      if (isoDateOnly) {
+        const y = Number(isoDateOnly[1]);
+        const m = Number(isoDateOnly[2]) - 1;
+        const d = Number(isoDateOnly[3]);
+        return new Date(y, m, d);
+      }
+      if (isoDateOnlySlash) {
+        const y = Number(isoDateOnlySlash[1]);
+        const m = Number(isoDateOnlySlash[2]) - 1;
+        const d = Number(isoDateOnlySlash[3]);
+        return new Date(y, m, d);
+      }
+      const parsed = Date.parse(value);
+      if (!isNaN(parsed)) return new Date(parsed);
+    }
+    return null;
+  };
+
+  // Prefer explicit reportedAt fields (common variants), then fallback to other date fields
+  const date = parseIncidentDate(currentIncident.reportedAt) || parseIncidentDate(currentIncident.reported_at) || parseIncidentDate(currentIncident.date) || parseIncidentDate(currentIncident.createdAt) || parseIncidentDate(incident?.reportedAt) || parseIncidentDate(incident?.reported_at) || parseIncidentDate(incident?.date) || parseIncidentDate(incident?.createdAt) || null;
 
   const statusColor = (status) => {
     switch ((status || '').toLowerCase()) {
@@ -246,13 +297,44 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
     return null;
   };
 
+  const shareLocation = async () => {
+    try {
+      const coords = parseCoords(currentIncident) || parseCoords(incident);
+      if (!coords) {
+        Alert.alert('No coordinates', 'This record does not contain coordinates to share.');
+        return;
+      }
+      const { latitude, longitude } = coords;
+      const query = encodeURIComponent(`${latitude},${longitude}`);
+      const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+
+      try {
+        await Share.share({
+          title: 'Incident location',
+          message: `${incident.species || 'Poaching alert'} — ${url}`,
+        });
+      } catch (shareErr) {
+        // If Share fails (rare), just open the URL in Maps
+        try {
+          await Linking.openURL(url);
+        } catch (linkErr) {
+          console.warn('Failed to open maps URL', linkErr);
+          Alert.alert('Error', 'Could not share or open map URL on this device.');
+        }
+      }
+    } catch (err) {
+      console.warn('shareLocation error', err);
+      Alert.alert('Error', 'Failed to prepare location for sharing');
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{incident.species || incident.title || 'Poaching Alert'}</Text>
+  <Text style={styles.title}>{'🐾 ' + (incident.species || incident.title || 'Poaching Alert')}</Text>
 
       <View style={styles.sectionRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>Status</Text>
+          <Text style={styles.label}>🔔 Status</Text>
           <View style={styles.statusRow}>
             <Text style={styles.value}>{`${statusSymbol(currentIncident.status || currentIncident.state || currentIncident.investigationStatus)}  ${(currentIncident.status || currentIncident.state || currentIncident.investigationStatus || 'pending').toUpperCase()}`}</Text>
           </View>
@@ -260,7 +342,7 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
         {isOfficer && (
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.actionButton, styles.change]} onPress={() => setModalVisible(true)}>
-              <Text style={styles.actionText}>Change Status</Text>
+              <Text style={styles.actionText}>⚙️ Change Status</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -271,10 +353,10 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
       <View style={styles.section}>
         {currentIncident.severity ? (
           <View style={{ marginBottom: 8 }}>
-            <Text style={styles.label}>Severity</Text>
-            <View style={[styles.severityBadge, { backgroundColor: severityColor(currentIncident.severity), alignSelf: 'flex-start' }]}>
-              <Text style={styles.severityText}>{String(currentIncident.severity).toUpperCase()}</Text>
-            </View>
+            <Text style={styles.label}>⚠️ Severity</Text>
+              <View style={[styles.severityBadge, { backgroundColor: severityColor(currentIncident.severity), alignSelf: 'flex-start' }]}>
+                <Text style={styles.severityText}>{(currentIncident.severity ? ((String(currentIncident.severity).toLowerCase() === 'high') ? '🔴 ' : (String(currentIncident.severity).toLowerCase() === 'medium' ? '🟠 ' : (String(currentIncident.severity).toLowerCase() === 'low' ? '🟢 ' : '⚪ '))) + String(currentIncident.severity).toUpperCase() : '')}</Text>
+              </View>
           </View>
         ) : (
           <View style={{ marginBottom: 8 }}>
@@ -283,11 +365,18 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        <Text style={styles.label}>Location</Text>
+  <Text style={styles.label}>📍 Location</Text>
         <Text style={styles.value}>{incident.location || formatLatLng(incident)}</Text>
-        <TouchableOpacity style={[styles.viewLocationButton, { backgroundColor: '#4CAF50' }]} onPress={() => setShowMapPicker(true)}>
-          <Text style={styles.viewLocationButtonText}>View on Map</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          <TouchableOpacity style={[styles.viewLocationButton, { backgroundColor: '#4CAF50' }]} onPress={() => setShowMapPicker(true)}>
+            <Text style={styles.viewLocationButtonText}>🗺️ View on Map</Text>
+          </TouchableOpacity>
+          {isOfficer && (
+            <TouchableOpacity style={[styles.viewLocationButton, { backgroundColor: '#2196F3' }]} onPress={shareLocation}>
+              <Text style={styles.viewLocationButtonText}>📤 Share Location</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {/* Inline location details removed; use View on Map to inspect coordinates on the map */}
       </View>
 
@@ -310,14 +399,14 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
       />
 
       {date && (
-        <View style={styles.section}>
-          <Text style={styles.label}>Date</Text>
-          <Text style={styles.value}>{date.toLocaleString()}</Text>
-        </View>
-      )}
+            <View style={styles.section}>
+              <Text style={styles.label}>🕒 Date</Text>
+              <Text style={styles.value}>{date.toLocaleString()}</Text>
+            </View>
+          )}
 
       <View style={styles.section}>
-        <Text style={styles.label}>Reported By</Text>
+  <Text style={styles.label}>👤 Reported By</Text>
         <Text style={styles.value}>{incident.reportedBy || incident.reporter || 'Unknown'}</Text>
       </View>
 
@@ -329,8 +418,8 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
           // provide a small diagnostics control so devs can inspect candidate fields on-device
           return (
             <View style={styles.section}>
-              <TouchableOpacity style={[styles.viewLocationButton, { backgroundColor: '#9E9E9E' }]} onPress={() => setPhoneDebugVisible(true)}>
-                <Text style={styles.viewLocationButtonText}>No reporter phone found — tap to inspect</Text>
+        <TouchableOpacity style={[styles.viewLocationButton, { backgroundColor: '#9E9E9E' }]} onPress={() => setPhoneDebugVisible(true)}>
+                <Text style={styles.viewLocationButtonText}>🔍 No reporter phone found — tap to inspect</Text>
               </TouchableOpacity>
             </View>
           );
@@ -339,7 +428,7 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
         return (
           <View style={styles.section}>
             <TouchableOpacity style={styles.callButton} onPress={() => onCall(reporterPhone)}>
-              <Text style={styles.callButtonText}>Call Reporter: {reporterPhone}</Text>
+              <Text style={styles.callButtonText}>{'📞 Call Reporter: ' + reporterPhone}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -348,8 +437,8 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
       {/* Phone debug modal - shows candidate fields and values */}
       <Modal visible={phoneDebugVisible} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContent, { maxHeight: '70%' }]}>
-            <Text style={styles.modalTitle}>Phone candidates</Text>
+            <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+            <Text style={styles.modalTitle}>📇 Phone candidates</Text>
             <ScrollView style={{ marginBottom: 12 }}>
               {(() => {
                 // gather candidate values from incident for inspection
@@ -388,8 +477,8 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
                 ));
               })()}
             </ScrollView>
-            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setPhoneDebugVisible(false)}>
-              <Text style={styles.modalCancelText}>Close</Text>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={() => setPhoneDebugVisible(false)}>
+              <Text style={styles.modalCancelText}>✖️ Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -404,7 +493,7 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
 
       {incident.description && (
         <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>📝 Description</Text>
           <Text style={styles.value}>{incident.description}</Text>
         </View>
       )}
@@ -412,7 +501,7 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
       {/* Evidence gallery (thumbnails) */}
       {(currentIncident.evidence && currentIncident.evidence.length > 0) && (
         <View style={styles.section}>
-          <Text style={styles.label}>Evidence</Text>
+          <Text style={styles.label}>🖼️ Evidence</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.evidenceScroll}>
             {currentIncident.evidence.map((url, idx) => (
               <TouchableOpacity key={idx} onPress={() => { setEvidenceIndex(idx); setEvidenceViewerVisible(true); }} activeOpacity={0.85}>
@@ -440,29 +529,29 @@ const PoachingAlertDetailsScreen = ({ route, navigation }) => {
         <Modal visible={modalVisible} animationType="slide" transparent>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select new status</Text>
-              {STATUS_OPTIONS.map((s) => {
-                const selected = (currentIncident.status || '').toLowerCase() === s.toLowerCase();
-                return (
-                  <TouchableOpacity
-                    key={s}
-                    style={[
-                      styles.modalOption,
-                      { backgroundColor: statusColor(s) },
-                      selected ? styles.modalOptionSelected : null,
-                    ]}
-                    onPress={() => onSelectStatus(s)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.modalOptionText, { color: '#fff', textAlign: 'left', flex: 1 }]}>{s.toUpperCase()}</Text>
-                    {selected ? <Text style={styles.checkMark}>✓</Text> : null}
-                  </TouchableOpacity>
-                );
-              })}
-              <TouchableOpacity style={styles.modalCancelButton} onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+                  <Text style={styles.modalTitle}>🔁 Select new status</Text>
+                  {STATUS_OPTIONS.map((s) => {
+                    const selected = (currentIncident.status || '').toLowerCase() === s.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        style={[
+                          styles.modalOption,
+                          { backgroundColor: statusColor(s) },
+                          selected ? styles.modalOptionSelected : null,
+                        ]}
+                        onPress={() => onSelectStatus(s)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.modalOptionText, { color: '#fff', textAlign: 'left', flex: 1 }]}>{statusSymbol(s) + ' ' + s.toUpperCase()}</Text>
+                        {selected ? <Text style={styles.checkMark}>✓</Text> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity style={styles.modalCancelButton} onPress={() => setModalVisible(false)}>
+                        <Text style={styles.modalCancelText}>❌ Cancel</Text>
+                      </TouchableOpacity>
+                </View>
           </View>
         </Modal>
 

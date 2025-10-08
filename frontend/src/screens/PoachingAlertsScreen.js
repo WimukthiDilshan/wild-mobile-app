@@ -53,8 +53,35 @@ const PoachingAlertsScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const data = await ApiService.fetchPoachingIncidents();
-      // Expecting an array of incidents
-      setIncidents(Array.isArray(data) ? data : []);
+      // Expecting an array of incidents. Sort by timestamp (newest first)
+      const arr = Array.isArray(data) ? data : [];
+      const getIncidentTs = (it) => {
+        try {
+          if (!it) return 0;
+          if (it.reportedAt) {
+            const t = new Date(it.reportedAt).getTime();
+            if (!isNaN(t)) return t;
+          }
+          if (it.createdAt && it.createdAt.seconds) {
+            return (Number(it.createdAt.seconds) * 1000) + (Number(it.createdAt.nanoseconds || 0) / 1e6);
+          }
+          if (it.date) {
+            const d = String(it.date);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+              const [y, m, day] = d.split('-').map(Number);
+              return new Date(y, m - 1, day).getTime();
+            }
+            const t = new Date(d).getTime();
+            if (!isNaN(t)) return t;
+          }
+          return 0;
+        } catch (e) {
+          return 0;
+        }
+      };
+
+      arr.sort((a, b) => getIncidentTs(b) - getIncidentTs(a));
+      setIncidents(arr);
     } catch (err) {
       console.error('Failed to load poaching incidents', err);
       setIncidents([]);
@@ -73,7 +100,33 @@ const PoachingAlertsScreen = ({ navigation }) => {
     setRefreshing(true);
     try {
       const data = await ApiService.fetchPoachingIncidents();
-      setIncidents(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      const getIncidentTs = (it) => {
+        try {
+          if (!it) return 0;
+          if (it.reportedAt) {
+            const t = new Date(it.reportedAt).getTime();
+            if (!isNaN(t)) return t;
+          }
+          if (it.createdAt && it.createdAt.seconds) {
+            return (Number(it.createdAt.seconds) * 1000) + (Number(it.createdAt.nanoseconds || 0) / 1e6);
+          }
+          if (it.date) {
+            const d = String(it.date);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+              const [y, m, day] = d.split('-').map(Number);
+              return new Date(y, m - 1, day).getTime();
+            }
+            const t = new Date(d).getTime();
+            if (!isNaN(t)) return t;
+          }
+          return 0;
+        } catch (e) {
+          return 0;
+        }
+      };
+      arr.sort((a, b) => getIncidentTs(b) - getIncidentTs(a));
+      setIncidents(arr);
     } catch (err) {
       console.error('Refresh failed', err);
     } finally {
@@ -88,6 +141,7 @@ const PoachingAlertsScreen = ({ navigation }) => {
     // displayed in local time (e.g. 05:30 AM for UTC+5:30), which looks odd.
     let dateObj = null;
     let dateText = '';
+        let dateIsDateOnly = false;
     if (item.reportedAt) {
       dateObj = new Date(item.reportedAt);
       dateText = isNaN(dateObj.getTime()) ? String(item.reportedAt) : dateObj.toLocaleString();
@@ -101,7 +155,8 @@ const PoachingAlertsScreen = ({ navigation }) => {
         // date-only -> show local date without time
         const [y, m, day] = d.split('-').map(Number);
         const localDate = new Date(y, m - 1, day);
-        dateText = localDate.toLocaleDateString();
+            dateText = localDate.toLocaleDateString();
+            dateIsDateOnly = true;
       } else {
         dateObj = new Date(d);
         dateText = isNaN(dateObj.getTime()) ? d : dateObj.toLocaleString();
@@ -114,22 +169,27 @@ const PoachingAlertsScreen = ({ navigation }) => {
       >
         <View style={styles.item}>
           <View style={styles.itemRow}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              {item.severity ? (
-                <View style={[styles.severityBadgeSmall, { backgroundColor: severityColor(item.severity), marginRight: 10 }]}> 
-                  <Text style={styles.severityTextSmall}>{String(item.severity).toUpperCase()}</Text>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {item.severity ? (
+                    <>
+                      <Text style={styles.severityEmoji}>⚠️</Text>
+                      <View style={[styles.severityBadgeSmall, { backgroundColor: severityColor(item.severity), marginLeft: 8 }]}> 
+                        <Text style={styles.severityTextSmall}>{String(item.severity).toUpperCase()}</Text>
+                      </View>
+                    </>
+                  ) : null}
                 </View>
-              ) : null}
-              <Text style={styles.title}>{item.species || item.description || 'Unknown'}</Text>
-            </View>
-            <View style={{ marginLeft: 8 }}>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status || item.state || item.investigationStatus) }]}>
-                <Text style={styles.statusText}>{`${statusSymbol(item.status || item.state || item.investigationStatus)}  ${((item.status || item.state || item.investigationStatus) || 'pending').toUpperCase()}`}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status || item.state || item.investigationStatus) }]}>
+                  <Text style={styles.statusText}>{`${statusSymbol(item.status || item.state || item.investigationStatus)}  ${((item.status || item.state || item.investigationStatus) || 'pending').toUpperCase()}`}</Text>
+                </View>
               </View>
+              <Text style={styles.speciesText}>{'🐾 ' + (item.species || item.description || 'Unknown')}</Text>
             </View>
           </View>
-          <Text style={styles.meta}>{item.location || formatLatLng(item)}</Text>
-          {dateText ? <Text style={styles.meta}>{dateText}</Text> : null}
+              <Text style={styles.meta}>{'📍 ' + (item.location || formatLatLng(item))}</Text>
+              {dateText ? <Text style={styles.meta}>{(dateIsDateOnly ? '📅 ' : '🕒 ') + dateText}</Text> : null}
         </View>
       </TouchableOpacity>
     );
@@ -148,7 +208,7 @@ const PoachingAlertsScreen = ({ navigation }) => {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Loading poaching alerts...</Text>
+        <Text style={styles.loadingText}>⏳ Loading poaching alerts...</Text>
       </View>
     );
   }
@@ -166,13 +226,14 @@ const PoachingAlertsScreen = ({ navigation }) => {
       <View style={styles.filterRow}>
         {severityOptions.map(opt => {
           const active = selectedSeverity === opt;
+          const label = opt === 'All' ? '🔎 All' : (opt === 'High' ? '🔴 High' : (opt === 'Medium' ? '🟠 Medium' : '🟢 Low'));
           return (
             <TouchableOpacity
               key={opt}
               style={[styles.filterButton, active ? styles.filterButtonActive : null]}
               onPress={() => setSelectedSeverity(opt)}
             >
-              <Text style={[styles.filterButtonText, active ? styles.filterButtonActiveText : null]}>{opt}</Text>
+              <Text style={[styles.filterButtonText, active ? styles.filterButtonActiveText : null]}>{label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -237,6 +298,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#222',
   },
+  speciesText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 2,
+  },
+  // severityEmoji removed here; defined later with spacing
+  severityTriangle: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#616161',
+  },
   meta: {
     color: '#666',
     fontSize: 13,
@@ -254,11 +332,17 @@ const styles = StyleSheet.create({
   severityBadgeSmall: {
     marginTop: 6,
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minHeight: 32,
+    minWidth: 88,
   },
-  severityTextSmall: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  severityTextSmall: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  severityEmoji: { fontSize: 16, marginRight: 6 },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

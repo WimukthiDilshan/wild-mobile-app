@@ -2,6 +2,7 @@ import {AppRegistry} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import App from './App';
 import {name as appName} from './app.json';
+import OfflineQueue from './src/services/OfflineQueue';
 
 // Register background handler for FCM messages.
 // This runs in a headless JS context when a data-message arrives while the app is backgrounded.
@@ -24,3 +25,6 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
 });
 
 AppRegistry.registerComponent(appName, () => App);
+
+// Start offline queue flushing when app starts
+OfflineQueue.start();

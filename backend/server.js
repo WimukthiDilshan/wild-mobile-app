@@ -100,12 +100,15 @@ async function sendPoachingNotifications(incidentId, incidentData) {
     officersSnapshot.forEach(doc => {
       const u = doc.data();
       const t = u.pushToken || u.fcmToken || u.notificationToken;
-      if (t) tokens.push(t);
+      if (t) tokens.push(String(t).trim());
     });
+
+    // Deduplicate tokens to avoid sending the same message multiple times
+    const uniqueTokens = [...new Set(tokens.filter(Boolean))];
 
     const notificationPayload = buildPoachingNotification(incidentId, incidentData);
 
-    if (tokens.length === 0) {
+    if (uniqueTokens.length === 0) {
       // fallback to topic publish (clients must subscribe)
       try {
         await admin.messaging().send({
@@ -128,8 +131,8 @@ async function sendPoachingNotifications(incidentId, incidentData) {
     let totalSuccess = 0;
     let totalFailure = 0;
 
-    for (let i = 0; i < tokens.length; i += batchSize) {
-      const batch = tokens.slice(i, i + batchSize);
+    for (let i = 0; i < uniqueTokens.length; i += batchSize) {
+      const batch = uniqueTokens.slice(i, i + batchSize);
       try {
         // try multicast
         const resp = await admin.messaging().sendMulticast({

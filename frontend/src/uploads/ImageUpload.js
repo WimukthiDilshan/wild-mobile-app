@@ -215,17 +215,20 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   singleButtonRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
+    width: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: 6,
   },
   imageButton: {
     backgroundColor: '#2196F3',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
     elevation: 2,
+    width: '100%',
+    minHeight: 48,
+    alignItems: 'center',
   },
   cameraButton: {
     backgroundColor: '#1976D2',
@@ -233,7 +236,8 @@ const styles = StyleSheet.create({
   imageButtonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
+    lineHeight: 20,
   },
   buttonDisabled: {
     opacity: 0.6,

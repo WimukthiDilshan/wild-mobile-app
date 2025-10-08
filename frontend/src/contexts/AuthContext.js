@@ -122,6 +122,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    // Keep references to messaging unsubscribers so we can cleanup when auth changes
+    let unsubscribeOnMessage = null;
+    let unsubscribeOnNotificationOpened = null;
+
     const unsubscribe = auth().onAuthStateChanged(async (authUser) => {
       if (authUser) {
         setUser(authUser);
@@ -174,8 +178,16 @@ export const AuthProvider = ({ children }) => {
                 console.debug('Failed to subscribe to officers topic:', subErr.message || subErr);
               }
             }
+            // Cleanup any existing listeners before registering new ones (prevents duplicates)
+            if (typeof unsubscribeOnMessage === 'function') {
+              try { unsubscribeOnMessage(); } catch (e) {}
+            }
+            if (typeof unsubscribeOnNotificationOpened === 'function') {
+              try { unsubscribeOnNotificationOpened(); } catch (e) {}
+            }
+
             // Foreground message handler
-            const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
+            unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
               console.log('FCM foreground message received:', remoteMessage);
               try {
                 const title = remoteMessage?.notification?.title || 'Notification';
@@ -200,7 +212,7 @@ export const AuthProvider = ({ children }) => {
             });
 
             // Handle notification opened from a background state
-            const unsubscribeOnNotificationOpened = messaging().onNotificationOpenedApp(async remoteMessage => {
+            unsubscribeOnNotificationOpened = messaging().onNotificationOpenedApp(async remoteMessage => {
               console.log('Notification opened (background):', remoteMessage);
               try {
                 await firestore().collection('push_receipts').add({
@@ -249,7 +261,12 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      try { unsubscribe(); } catch (e) {}
+      // Ensure messaging listeners are cleaned up when the provider unmounts
+      try { if (typeof unsubscribeOnMessage === 'function') unsubscribeOnMessage(); } catch (e) {}
+      try { if (typeof unsubscribeOnNotificationOpened === 'function') unsubscribeOnNotificationOpened(); } catch (e) {}
+    };
   }, []);
 
   const signUp = async (email, password, profileData) => {
