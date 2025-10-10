@@ -15,6 +15,7 @@ import {
   FlatList,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import ApiService from '../services/ApiService';
 
 const SignUpScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -31,6 +32,10 @@ const SignUpScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [parks, setParks] = useState([]);
+  const [parksLoading, setParksLoading] = useState(false);
+  const [parksError, setParksError] = useState(null);
+  const [showParkModal, setShowParkModal] = useState(false);
   
   const { signUp, USER_ROLES } = useAuth();
   
@@ -124,6 +129,13 @@ const SignUpScreen = ({ navigation }) => {
       Alert.alert('Validation Error', 'Please select your role.');
       return false;
     }
+    // If officer role selected, ensure park is chosen so we can route alerts correctly
+    if (formData.role === USER_ROLES.OFFICER) {
+      if (!formData.parkId) {
+        Alert.alert('Validation Error', 'As an officer you must select the park you are responsible for.');
+        return false;
+      }
+    }
     return true;
   };
 
@@ -137,6 +149,9 @@ const SignUpScreen = ({ navigation }) => {
         role: formData.role,
         organization: formData.organization.trim(),
         phoneNumber: formData.phoneNumber.trim(),
+        // If officer selected, include park assignment so backend can send alerts to relevant officers
+        parkId: formData.parkId || null,
+        parkName: formData.parkName || null,
       };
 
       const result = await signUp(formData.email.trim(), formData.password, profileData);
@@ -167,6 +182,39 @@ const SignUpScreen = ({ navigation }) => {
   const getSelectedRole = () => {
     return roleOptions.find(role => role.id === formData.role);
   };
+
+  // Fetch parks when officer role is selected
+  React.useEffect(() => {
+    let mounted = true;
+    const loadParks = async () => {
+      if (formData.role !== USER_ROLES.OFFICER) {
+        // Clear any previously selected park when role is not officer
+        setParks([]);
+        setParksError(null);
+        handleInputChange('parkId', '');
+        handleInputChange('parkName', '');
+        return;
+      }
+      setParksLoading(true);
+      setParksError(null);
+      try {
+        const allParks = await ApiService.fetchParks();
+        if (!mounted) return;
+        // Optionally filter to active parks only
+        const active = allParks && Array.isArray(allParks) ? allParks.filter(p => p.status === 'Active' || !p.status) : allParks;
+        setParks(active);
+      } catch (e) {
+        console.error('Failed to load parks for officer selection', e);
+        setParksError(e.message || 'Failed to load parks');
+        Alert.alert('Error', 'Failed to load parks. Please try again later.');
+      } finally {
+        if (mounted) setParksLoading(false);
+      }
+    };
+
+    loadParks();
+    return () => { mounted = false; };
+  }, [formData.role]);
 
   return (
     <KeyboardAvoidingView 
@@ -278,6 +326,26 @@ const SignUpScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
+            {/* Park Selection for Officers */}
+            {formData.role === USER_ROLES.OFFICER && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>🏞️ Assigned Park</Text>
+                <TouchableOpacity
+                  style={[styles.input, styles.dropdownInput]}
+                  onPress={() => setShowParkModal(true)}>
+                  {formData.parkId ? (
+                    <View style={styles.selectedRoleContainer}>
+                      <Text style={styles.selectedRoleText}>{formData.parkName}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.placeholderText}>{parksLoading ? 'Loading parks...' : 'Select a park'}</Text>
+                  )}
+                  <Text style={styles.dropdownIcon}>▼</Text>
+                </TouchableOpacity>
+                {parksError && <Text style={{ color: 'red', marginTop: 6 }}>{parksError}</Text>}
+              </View>
+            )}
+
             {/* Organization Input (Optional) */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>🏢 Organization (Optional)</Text>
@@ -377,6 +445,58 @@ const SignUpScreen = ({ navigation }) => {
                 </TouchableOpacity>
               )}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Park Selection Modal (for Officers) */}
+      <Modal
+        visible={showParkModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowParkModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🏞️ Select Park</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowParkModal(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {parksLoading ? (
+              <View style={{ padding: 20 }}>
+                <ActivityIndicator size="small" />
+                <Text style={{ marginTop: 12 }}>Loading parks...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={parks}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.roleOption, { borderColor: '#ddd' }]}
+                    onPress={() => {
+                      handleInputChange('parkId', item.id);
+                      handleInputChange('parkName', item.name || item.displayName || item.title || 'Unnamed Park');
+                      setShowParkModal(false);
+                    }}>
+                    <View style={styles.roleHeader}>
+                      <View style={styles.roleInfo}>
+                        <Text style={[styles.roleName]}>{item.name}</Text>
+                        {item.location ? <Text style={styles.roleDescription}>📍 {item.location}</Text> : null}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={() => (
+                  <View style={{ padding: 20 }}>
+                    <Text style={{ color: '#666' }}>No parks available</Text>
+                  </View>
+                )}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -606,6 +726,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 4,
+    color: '#333',
   },
   roleDescription: {
     fontSize: 14,

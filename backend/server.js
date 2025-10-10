@@ -51,6 +51,8 @@ function buildPoachingNotification(incidentId, incidentData, opts = {}) {
   const severity = incidentData.severity || 'Unknown';
   const reportedAt = incidentData.reportedAt || incidentData.date || new Date().toISOString();
 
+  const parkName = (incidentData.park && (incidentData.park.name || incidentData.park.parkName)) || incidentData.parkName || '';
+
   // Normalize location to a short string
   let locationStr = 'Unknown location';
   if (typeof incidentData.location === 'string' && incidentData.location.trim()) {
@@ -66,6 +68,7 @@ function buildPoachingNotification(incidentId, incidentData, opts = {}) {
   const title = opts.dev ? `🚨 New Poaching Report (dev): ${species}` : `🚨 New Poaching Report`;
   const bodyParts = [`${species}`];
   if (locationStr) bodyParts.push(`at ${locationStr}`);
+  if (parkName) bodyParts.push(`in ${parkName}`);
   if (severity) bodyParts.push(`(severity: ${severity})`);
   if (reporter) bodyParts.push(`reported by ${reporter}`);
   const body = `${bodyParts.join(' ')}${shortDesc ? ` — ${shortDesc}` : ''}`;
@@ -77,6 +80,7 @@ function buildPoachingNotification(incidentId, incidentData, opts = {}) {
       type: 'poaching',
       species,
       location: typeof incidentData.location === 'string' ? incidentData.location : JSON.stringify(incidentData.location || {}),
+      park: typeof incidentData.park === 'string' ? incidentData.park : JSON.stringify(incidentData.park || {}),
       severity,
       reportedBy: reporter,
       reportedAt: reportedAt,
@@ -527,7 +531,8 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
     const { 
       species, location, date, severity, description,
       reportedBy, reportedByUserId, reportedByRole, reportedAt,
-      evidence
+      evidence,
+      park
     } = req.body;
     if (!species || !location || !date || !severity) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -545,6 +550,8 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
     const data = {
       species,
       location,
+      // include park object (if provided)
+      park: park || null,
       status: 'pending',
       date,
       severity,
@@ -566,6 +573,108 @@ app.post('/api/poaching', authenticateUser, async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
+
+    // If park not provided, attempt to infer nearest park from coordinates in location
+    if (!data.park) {
+      try {
+        // helper to parse coordinates from a string like "Name (lat, lon)" or "lat, lon"
+        const parseCoords = (loc) => {
+          if (!loc) return null;
+          if (typeof loc === 'object') {
+            const lat = loc.latitude || loc.lat || (loc.coords && loc.coords.latitude) || null;
+            const lon = loc.longitude || loc.lng || loc.lon || (loc.coords && loc.coords.longitude) || null;
+            if (lat != null && lon != null) return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
+          }
+          if (typeof loc === 'string') {
+            // try to find numbers inside parentheses
+            const m = loc.match(/\(?\s*([-+]?[0-9]*\.?[0-9]+)\s*,\s*([-+]?[0-9]*\.?[0-9]+)\s*\)?/);
+            if (m) return { latitude: parseFloat(m[1]), longitude: parseFloat(m[2]) };
+            // try plain comma-separated
+            const parts = loc.split(',').map(s => s.trim());
+            if (parts.length >= 2 && !isNaN(parseFloat(parts[0])) && !isNaN(parseFloat(parts[1]))) {
+              return { latitude: parseFloat(parts[0]), longitude: parseFloat(parts[1]) };
+            }
+          }
+          return null;
+        };
+
+        const coords = parseCoords(data.location);
+        if (coords) {
+          const parksSnap = await db.collection('parks').get();
+          let nearest = null;
+          let nearestDist = Infinity;
+          const toRad = (deg) => deg * Math.PI / 180;
+          const haversine = (a, b) => {
+            const R = 6371; // km
+            const dLat = toRad(b.latitude - a.latitude);
+            const dLon = toRad(b.longitude - a.longitude);
+            const lat1 = toRad(a.latitude);
+            const lat2 = toRad(b.latitude);
+            const sinDLat = Math.sin(dLat/2);
+            const sinDLon = Math.sin(dLon/2);
+            const aa = sinDLat*sinDLat + sinDLon*sinDLon * Math.cos(lat1)*Math.cos(lat2);
+            const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1-aa));
+            return R * c;
+          };
+
+          parksSnap.forEach(doc => {
+            const p = doc.data();
+            const pc = p.coordinates || p.coords || p.locationCoords || null;
+            if (pc && (pc.latitude != null || pc.lat != null) && (pc.longitude != null || pc.lng != null)) {
+              const parkCoord = { latitude: pc.latitude || pc.lat, longitude: pc.longitude || pc.lng };
+              try {
+                const d = haversine(coords, parkCoord);
+                if (d < nearestDist) {
+                  nearestDist = d;
+                  nearest = { id: doc.id, data: p };
+                }
+              } catch (e) {
+                // ignore parsing errors
+              }
+            }
+          });
+
+          if (nearest) {
+            data.park = { id: nearest.id, name: nearest.data.name || nearest.data.parkName || '' };
+            console.log('Auto-assigned park for incident based on coords:', data.park);
+          } else {
+            console.log('No park coordinates available to auto-assign park for incident');
+          }
+        } else {
+          console.log('No coords parsed from location; attempting name-based park match');
+          try {
+            const normalized = (typeof data.location === 'string' ? data.location.toLowerCase() : '');
+            if (normalized) {
+              const parksSnap = await db.collection('parks').get();
+              let match = null;
+              parksSnap.forEach(doc => {
+                const p = doc.data();
+                const pname = (p.name || p.parkName || '').toLowerCase();
+                if (pname && normalized.includes(pname)) {
+                  match = { id: doc.id, name: p.name || p.parkName || '' };
+                }
+              });
+              if (match) {
+                data.park = { id: match.id, name: match.name };
+                console.log('Assigned park by name match:', data.park);
+              } else {
+                console.log('No name-based park match found');
+              }
+            }
+          } catch (nameErr) {
+            console.warn('Name-based park match failed:', nameErr && nameErr.message ? nameErr.message : nameErr);
+          }
+        }
+      } catch (autoErr) {
+        console.warn('Failed to auto-assign park:', autoErr && autoErr.message ? autoErr.message : autoErr);
+      }
+    }
+    try {
+      console.log('Dev: saving poaching incident keys:', Object.keys(data || {}));
+      console.log('Dev: park present?', !!data.park, 'park:', data.park);
+    } catch (logErr) {
+      console.log('Dev: failed to log poaching data keys', logErr && logErr.message ? logErr.message : logErr);
+    }
     const docRef = await db.collection('poaching_incidents').add(data);
 
     // Trigger notifications for real poaching submissions only
@@ -946,7 +1055,7 @@ app.post('/api/debug/poaching', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Forbidden in production' });
     }
 
-    const { species, location, date, severity, description, evidence } = req.body || {};
+  const { species, location, date, severity, description, evidence, park } = req.body || {};
     if (!species || !location || !date || !severity) {
       return res.status(400).json({ success: false, error: 'Missing required fields (species, location, date, severity)' });
     }
@@ -954,6 +1063,8 @@ app.post('/api/debug/poaching', async (req, res) => {
     const data = {
       species,
       location,
+      // include provided park if present
+      park: park || null,
       status: 'pending',
       date,
       severity,
@@ -966,6 +1077,88 @@ app.post('/api/debug/poaching', async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
+
+    // Try to auto-assign park for dev-created incidents (same logic as real endpoint)
+    try {
+      // only attempt auto-assign when no park was provided
+      if (!data.park) {
+      const parseCoords = (loc) => {
+        if (!loc) return null;
+        if (typeof loc === 'object') {
+          const lat = loc.latitude || loc.lat || (loc.coords && loc.coords.latitude) || null;
+          const lon = loc.longitude || loc.lng || loc.lon || (loc.coords && loc.coords.longitude) || null;
+          if (lat != null && lon != null) return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
+        }
+        if (typeof loc === 'string') {
+          const m = loc.match(/\(?\s*([-+]?[0-9]*\.?[0-9]+)\s*,\s*([-+]?[0-9]*\.?[0-9]+)\s*\)?/);
+          if (m) return { latitude: parseFloat(m[1]), longitude: parseFloat(m[2]) };
+          const parts = loc.split(',').map(s => s.trim());
+          if (parts.length >= 2 && !isNaN(parseFloat(parts[0])) && !isNaN(parseFloat(parts[1]))) {
+            return { latitude: parseFloat(parts[0]), longitude: parseFloat(parts[1]) };
+          }
+        }
+        return null;
+      };
+
+      const coords = parseCoords(data.location);
+  if (coords) {
+        const parksSnap = await db.collection('parks').get();
+        let nearest = null;
+        let nearestDist = Infinity;
+        const toRad = (deg) => deg * Math.PI / 180;
+        const haversine = (a, b) => {
+          const R = 6371; // km
+          const dLat = toRad(b.latitude - a.latitude);
+          const dLon = toRad(b.longitude - a.longitude);
+          const lat1 = toRad(a.latitude);
+          const lat2 = toRad(b.latitude);
+          const sinDLat = Math.sin(dLat/2);
+          const sinDLon = Math.sin(dLon/2);
+          const aa = sinDLat*sinDLat + sinDLon*sinDLon * Math.cos(lat1)*Math.cos(lat2);
+          const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1-aa));
+          return R * c;
+        };
+
+        parksSnap.forEach(doc => {
+          const p = doc.data();
+          const pc = p.coordinates || p.coords || p.locationCoords || null;
+          if (pc && (pc.latitude != null || pc.lat != null) && (pc.longitude != null || pc.lng != null)) {
+            const parkCoord = { latitude: pc.latitude || pc.lat, longitude: pc.longitude || pc.lng };
+            try {
+              const d = haversine(coords, parkCoord);
+              if (d < nearestDist) {
+                nearestDist = d;
+                nearest = { id: doc.id, data: p };
+              }
+            } catch (e) {}
+          }
+        });
+
+        if (nearest) {
+          data.park = { id: nearest.id, name: nearest.data.name || nearest.data.parkName || '' };
+          console.log('Dev auto-assigned park for incident based on coords:', data.park);
+        }
+  } else {
+        // fallback: name-based match
+        const normalized = (typeof data.location === 'string' ? data.location.toLowerCase() : '');
+        if (normalized) {
+          const parksSnap = await db.collection('parks').get();
+          let match = null;
+          parksSnap.forEach(doc => {
+            const p = doc.data();
+            const pname = (p.name || p.parkName || '').toLowerCase();
+            if (pname && normalized.includes(pname)) match = { id: doc.id, name: p.name || p.parkName || '' };
+          });
+          if (match) {
+            data.park = { id: match.id, name: match.name };
+            console.log('Dev assigned park by name match:', data.park);
+          }
+        }
+      }
+      } // end if (!data.park)
+    } catch (e) {
+      console.warn('Dev: failed to auto-assign park:', e && e.message ? e.message : e);
+    }
 
     const docRef = await db.collection('poaching_incidents').add(data);
 

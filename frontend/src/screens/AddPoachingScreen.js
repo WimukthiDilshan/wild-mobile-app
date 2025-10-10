@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  FlatList,
+  TouchableWithoutFeedback,
   ActivityIndicator,
   Animated,
 } from 'react-native';
@@ -31,6 +34,12 @@ const AddPoachingScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [locationData, setLocationData] = useState(null);
+  // Parks dropdown
+  const [parks, setParks] = useState([]);
+  const [parksLoading, setParksLoading] = useState(false);
+  const [parkModalVisible, setParkModalVisible] = useState(false);
+  const [selectedPark, setSelectedPark] = useState(null);
+  const [parkSearch, setParkSearch] = useState('');
   const [isGettingGPS, setIsGettingGPS] = useState(false);
   const [evidenceUrls, setEvidenceUrls] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -113,6 +122,24 @@ const AddPoachingScreen = ({ navigation }) => {
     }
   };
 
+  // Fetch parks for park dropdown
+  useEffect(() => {
+    let mounted = true;
+    const loadParks = async () => {
+      setParksLoading(true);
+      try {
+        const data = await ApiService.fetchParks();
+        if (mounted) setParks(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.warn('Failed to load parks:', err);
+      } finally {
+        if (mounted) setParksLoading(false);
+      }
+    };
+    loadParks();
+    return () => { mounted = false; };
+  }, []);
+
   // Send an emergency report using a provided location object (from map or fallback)
   const performEmergencySendWithLoc = async (loc) => {
     setEmergencyLoading(true);
@@ -122,7 +149,7 @@ const AddPoachingScreen = ({ navigation }) => {
       const coordsStr = loc ? `${loc.name || loc.description || ''} (${loc.formattedCoords || (loc.latitude && loc.longitude ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '')})` : 'Location unknown';
       const dateString = new Date().toISOString().slice(0,10);
       emergencyData = {
-        species: '🚨 Emergency Alert',
+        species: 'Emergency Alert',
         location: coordsStr,
         date: dateString,
         severity: 'High',
@@ -134,10 +161,13 @@ const AddPoachingScreen = ({ navigation }) => {
         reportedByUserId: userData?.uid || user?.uid || null,
         reportedByRole: userData?.role || 'unknown',
         reportedAt: new Date().toISOString(),
+        // include park if user selected one earlier
+        park: selectedPark ? { id: selectedPark.id || selectedPark._id || selectedPark.parkId || selectedPark.uid, name: selectedPark.name || selectedPark.parkName || selectedPark.title } : undefined,
       };
 
-      await ApiService.reportPoachingIncident(emergencyData);
-      Alert.alert('🚨 Sent', 'Emergency alert sent successfully');
+  console.debug('Sending emergency poaching payload:', emergencyData);
+  await ApiService.reportPoachingIncident(emergencyData);
+      Alert.alert('Sent', 'Emergency alert sent successfully');
     } catch (err) {
       console.error('Emergency send failed (map):', err);
       const queued = await OfflineQueue.enqueueIncident({ ...(emergencyData || {}), _emergencyLocal: true });
@@ -154,6 +184,10 @@ const AddPoachingScreen = ({ navigation }) => {
   
 
   const validateForm = () => {
+    if (!selectedPark) {
+      Alert.alert('Error', 'Please select the park this incident belongs to');
+      return false;
+    }
     if (!formData.species.trim()) {
       Alert.alert('Error', 'Please enter the species name');
       return false;
@@ -173,6 +207,7 @@ const AddPoachingScreen = ({ navigation }) => {
     if (!validateForm()) return;
 
     setLoading(true);
+    let poachingData = null; // hoist so catch block can reference
     try {
       // Add logged-in user information to the form data
       // Ensure date is set to current date (YYYY-MM-DD) if not provided
@@ -180,7 +215,7 @@ const AddPoachingScreen = ({ navigation }) => {
         ? formData.date.trim()
         : new Date().toISOString().slice(0, 10);
 
-      const poachingData = {
+      poachingData = {
         ...formData,
         date: dateString,
         evidence: evidenceUrls,
@@ -189,11 +224,14 @@ const AddPoachingScreen = ({ navigation }) => {
               reportedByUserId: userData?.uid || user?.uid || null,
               reportedByRole: userData?.role || 'unknown',
         reportedAt: new Date().toISOString(),
+        // include selected park info
+        park: selectedPark ? { id: selectedPark.id || selectedPark._id || selectedPark.parkId || selectedPark.uid || selectedPark.uid, name: selectedPark.name || selectedPark.parkName || selectedPark.title } : null,
       };
 
 
 
-      await ApiService.reportPoachingIncident(poachingData);
+  console.debug('Sending poaching payload:', poachingData);
+  await ApiService.reportPoachingIncident(poachingData);
       Alert.alert(
         'Success', 
         'Poaching incident reported successfully',
@@ -253,7 +291,7 @@ const AddPoachingScreen = ({ navigation }) => {
   // Reusable emergency trigger used by header button and FAB
   const triggerEmergency = () => {
     Alert.alert(
-      '🚨 Send Emergency Alert?',
+      'Send Emergency Alert?',
       'Send an immediate high-priority poaching alert to nearby officers?',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -283,7 +321,7 @@ const AddPoachingScreen = ({ navigation }) => {
                   loc = null;
                   setEmergencyLoading(false);
                   Alert.alert(
-                    '🚨 GPS timed out',
+                    'GPS timed out',
                     'Unable to obtain GPS fix. Opening the map so you can tap to select the incident location.',
                     [{ text: 'OK', onPress: () => { setEmergencyPending(true); setTimeout(() => setShowMapPicker(true), 250); } }]
                   );
@@ -299,7 +337,7 @@ const AddPoachingScreen = ({ navigation }) => {
                   usedSource = 'none';
                   setEmergencyLoading(false);
                   Alert.alert(
-                    '🚨 GPS error',
+                    'GPS error',
                     'Unable to obtain GPS location. Opening the map so you can select a location manually.',
                     [{ text: 'OK', onPress: () => { setEmergencyPending(true); setTimeout(() => setShowMapPicker(true), 250); } }]
                   );
@@ -311,7 +349,7 @@ const AddPoachingScreen = ({ navigation }) => {
             const coordsStr = loc ? `${loc.description || ''} (${loc.formattedCoords || (loc.latitude && loc.longitude ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '')})` : 'Location unknown';
             const dateString = new Date().toISOString().slice(0,10);
             emergencyData = {
-              species: '🚨 Emergency Alert',
+              species: 'Emergency Alert',
               location: coordsStr,
               date: dateString,
               severity: 'High',
@@ -323,18 +361,20 @@ const AddPoachingScreen = ({ navigation }) => {
               reportedByUserId: userData?.uid || user?.uid || null,
               reportedByRole: userData?.role || 'unknown',
               reportedAt: new Date().toISOString(),
+              park: selectedPark ? { id: selectedPark.id || selectedPark._id || selectedPark.parkId || selectedPark.uid, name: selectedPark.name || selectedPark.parkName || selectedPark.title } : undefined,
             };
 
             if (usedSource === 'GPS') {
-              Alert.alert('🚨 Location', 'Using current GPS location for the emergency alert');
+              Alert.alert('Location', 'Using current GPS location for the emergency alert');
             } else if (usedSource && usedSource.startsWith('Map')) {
-              Alert.alert('🚨 Location', 'Using map-selected location for the emergency alert');
+              Alert.alert('Location', 'Using map-selected location for the emergency alert');
             } else {
-              Alert.alert('🚨 Location', 'No reliable location available — sending without precise coordinates');
+              Alert.alert('Location', 'No reliable location available — sending without precise coordinates');
             }
 
+            console.debug('Sending emergency poaching payload (triggerEmergency):', emergencyData);
             await ApiService.reportPoachingIncident(emergencyData);
-            Alert.alert('🚨 Sent', 'Emergency alert sent successfully');
+            Alert.alert('Sent', 'Emergency alert sent successfully');
           } catch (err) {
             console.error('Emergency send failed:', err);
             const queued = await OfflineQueue.enqueueIncident({ ...(emergencyData || {}), _emergencyLocal: true });
@@ -361,15 +401,7 @@ const AddPoachingScreen = ({ navigation }) => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Report Poaching Incident</Text>
           <Text style={styles.headerSubtitle}>Help us protect wildlife</Text>
-          <View style={styles.userInfoContainer}>
-            <Text style={styles.roleEmoji}>
-              {userData?.role === 'researcher' ? '🔬' : 
-               userData?.role === 'driver' ? '🚗' : '👁️'}
-            </Text>
-            <Text style={styles.userInfoText}>
-              {userData?.displayName || userData?.email || user?.email} ({userData?.role})
-            </Text>
-          </View>
+          {/* user info removed from header UI */}
         
         </View>
         {/* Top one-tap emergency button */}
@@ -379,7 +411,7 @@ const AddPoachingScreen = ({ navigation }) => {
             onPress={triggerEmergency}
             activeOpacity={0.85}
           >
-            <Text style={styles.emergencyButtonTextHeader}>{emergencyLoading ? 'Sending…' : '🚨 Emergency: One‑Tap Alert'}</Text>
+            <Text style={styles.emergencyButtonTextHeader}>{emergencyLoading ? 'Sending…' : 'Emergency: One‑Tap Alert'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -393,6 +425,21 @@ const AddPoachingScreen = ({ navigation }) => {
               placeholder="e.g., Tiger, Elephant, etc."
               placeholderTextColor="#999"
             />
+          </View>
+
+          {/* Park dropdown (required) */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>🏞️ Park *</Text>
+            <TouchableOpacity
+              style={[styles.input, styles.dropdownButton, styles.dropdownInput]}
+              onPress={() => setParkModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={selectedPark ? styles.readOnlyText : { color: '#999' }} numberOfLines={1} ellipsizeMode="tail">
+                {selectedPark ? `${selectedPark.name || selectedPark.parkName || selectedPark.title}` : (parksLoading ? 'Loading parks…' : 'Select park')}
+              </Text>
+              <Text style={styles.dropdownIcon}>▾</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.inputGroup}>
@@ -547,6 +594,59 @@ const AddPoachingScreen = ({ navigation }) => {
         onLocationSelect={handleMapLocationSelect}
         initialLocation={locationData}
       />
+
+      {/* Park selection modal */}
+      <Modal
+        visible={parkModalVisible}
+        animationType="slide"
+        onRequestClose={() => setParkModalVisible(false)}
+        transparent
+      >
+        <TouchableWithoutFeedback onPress={() => setParkModalVisible(false)}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Select Park</Text>
+          <TextInput
+            style={styles.parkSearchInput}
+            placeholder="Search parks..."
+            placeholderTextColor="#999"
+            value={parkSearch}
+            onChangeText={setParkSearch}
+          />
+          {parksLoading ? (
+            <ActivityIndicator size="small" color="#333" />
+          ) : (
+            <FlatList
+              data={parks.filter(p => (p.name || p.parkName || p.title || '').toLowerCase().includes(parkSearch.toLowerCase()))}
+              keyExtractor={(item) => (item.id || item._id || item.parkId || item.uid || String(item.name))}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.parkItem}
+                  onPress={() => {
+                    // Normalize the selected park so we always send a compact { id, name } shape
+                    const normalized = {
+                      id: item.id || item._id || item.parkId || item.uid || null,
+                      name: item.name || item.parkName || item.title || item.label || '' ,
+                      // keep the raw item for future reference if needed
+                      _raw: item
+                    };
+                    setSelectedPark(normalized);
+                    setParkModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.parkItemText}>🏞️ {item.name || item.parkName || item.title}</Text>
+                  <Text style={styles.parkItemSub}>📍 {item.region || item.country || ''}</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={() => <Text style={{ color: '#666' }}>No parks found</Text>}
+            />
+          )}
+          <TouchableOpacity style={styles.modalClose} onPress={() => setParkModalVisible(false)}>
+            <Text style={styles.modalCloseText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       {/* Top emergency button is used; floating FAB removed */}
     </KeyboardAvoidingView>
@@ -795,6 +895,68 @@ const styles = StyleSheet.create({
   locationDataTime: {
     fontSize: 11,
     color: '#888',
+  },
+  dropdownButton: {
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  dropdownInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+  },
+  dropdownIcon: {
+    fontSize: 16,
+    color: '#666',
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)'
+  },
+  modalContent: {
+    maxHeight: '60%',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  parkSearchInput: {
+    backgroundColor: '#f2f2f2',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    color: '#222'
+  },
+  parkItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  parkItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+  },
+  parkItemSub: {
+    fontSize: 12,
+    color: '#444',
+  },
+  modalClose: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  modalCloseText: {
+    color: '#F44336',
+    fontWeight: '700',
   },
   readOnlyInput: {
     paddingVertical: 14,

@@ -15,7 +15,7 @@ import AddPoachingScreen from './AddPoachingScreen';
 
 const { width } = Dimensions.get('window');
 
-const ReportedList = ({ navigation }) => {
+const ReportedList = ({ navigation, selectedSeverity = 'All' }) => {
   const { userData } = useAuth();
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -101,24 +101,48 @@ const ReportedList = ({ navigation }) => {
     return '📣';
   };
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('PoachingAlertDetails', { incident: item })}
-    >
-        <View style={styles.cardRow}>
-        <Text style={styles.species}>🐾 {item.species || 'Unknown species'}</Text>
-        <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(item.severity) }]}>
-          <Text style={styles.severityTextSmall}>{(item.severity || 'Medium').toString()}</Text>
+  const statusColor = (status) => {
+    const s = (status || '').toString().toLowerCase();
+    if (s === 'pending' || !s) return '#EF5350';
+    if (s === 'in progress' || s === 'investigating') return '#FFA726';
+    if (s === 'resolved') return '#66BB6A';
+    return '#616161';
+  };
+
+  const renderItem = ({ item }) => {
+    const parkName = item.park && (item.park.name || item.park.parkName) ? (item.park.name || item.park.parkName) : null;
+    const locationStr = item.location || item.name || formatIncidentDateTime(item) ? item.location || item.name : 'Location unknown';
+    return (
+      <TouchableOpacity
+        style={styles.item}
+        onPress={() => navigation.navigate('PoachingAlertDetails', { incident: item })}
+      >
+        <View style={styles.itemRow}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {item.severity ? (
+                  <>
+                    <Text style={styles.severityEmoji}>⚠️</Text>
+                    <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(item.severity), marginLeft: 8 }]}> 
+                      <Text style={styles.severityTextSmall}>{String(item.severity).toUpperCase()}</Text>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) }]}>
+                <Text style={styles.statusText}>{`${getStatusEmoji(item.status)}  ${((item.status) || 'pending').toUpperCase()}`}</Text>
+              </View>
+            </View>
+            <Text style={styles.species}>🐾 {item.species || item.description || 'Unknown'}</Text>
+          </View>
         </View>
-      </View>
-      <Text style={styles.location}>📍 {item.location || item.name || '—'}</Text>
-      <View style={styles.cardFooter}>
-        <Text style={styles.date}>🕒 {formatIncidentDateTime(item)}</Text>
-        <Text style={styles.status}>{`${getStatusEmoji(item.status)} ${item.status || 'reported'}`}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+        {parkName ? <Text style={[styles.meta, styles.parkName]}>🏞️ {parkName}</Text> : null}
+        <Text style={styles.meta}>📍 {item.location || item.name || '—'}</Text>
+        <Text style={styles.meta}>{'🕒 ' + formatIncidentDateTime(item)}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   // Format date/time for display: prefer reportedAt, then createdAt, then date
   const formatIncidentDateTime = (it) => {
@@ -150,13 +174,17 @@ const ReportedList = ({ navigation }) => {
   };
 
   if (loading) return <ActivityIndicator style={{ marginTop: 20 }} />;
+  // Apply severity filter
+  const filteredIncidents = selectedSeverity === 'All'
+    ? incidents
+    : incidents.filter(i => ((i.severity || '').toString().toLowerCase()) === selectedSeverity.toLowerCase());
 
   return (
     <FlatList
-      data={incidents}
+      data={filteredIncidents}
       keyExtractor={(i) => i.id || `${i.reportedAt || ''}-${Math.random()}`}
       renderItem={renderItem}
-      contentContainerStyle={incidents.length === 0 && styles.emptyContainer}
+      contentContainerStyle={filteredIncidents.length === 0 && styles.emptyContainer}
       ListEmptyComponent={<Text style={styles.emptyText}>You haven't reported any incidents yet.</Text>}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     />
@@ -165,6 +193,7 @@ const ReportedList = ({ navigation }) => {
 
 const PoachingTabsScreen = ({ navigation }) => {
   const [active, setActive] = useState('form'); // start on form by default
+  const [selectedSeverity, setSelectedSeverity] = useState('All');
 
   const getSeverityColor = (sev) => {
     if (!sev) return '#FF9800';
@@ -193,7 +222,24 @@ const PoachingTabsScreen = ({ navigation }) => {
 
       <View style={styles.content}>
         {active === 'list' ? (
-          <ReportedList navigation={navigation} />
+          <>
+            <View style={styles.filterRow}>
+              {['All','High','Medium','Low'].map(opt => {
+                const activeOpt = selectedSeverity === opt;
+                const label = opt === 'All' ? '🔎 All' : (opt === 'High' ? '🔴 High' : (opt === 'Medium' ? '🟠 Medium' : '🟢 Low'));
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.filterButton, activeOpt ? styles.filterButtonActive : null]}
+                    onPress={() => setSelectedSeverity(opt)}
+                  >
+                    <Text style={[styles.filterButtonText, activeOpt ? styles.filterButtonActiveText : null]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <ReportedList navigation={navigation} selectedSeverity={selectedSeverity} />
+          </>
         ) : (
           // Render the existing AddPoachingScreen form inline
           <AddPoachingScreen navigation={navigation} />
@@ -227,11 +273,69 @@ const styles = StyleSheet.create({
   },
   severityTextSmall: { color: 'white', fontWeight: '700', textTransform: 'capitalize', fontSize: 13, lineHeight: 16 },
   location: { color: '#666', marginTop: 6 },
+  // Item styles (match PoachingAlertsScreen look)
+  item: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    marginHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  species: { fontSize: 14, fontWeight: '700', color: '#222', marginBottom: 4 },
+  meta: { color: '#666', fontSize: 13 },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  severityEmoji: { fontSize: 16, marginRight: 6 },
+  parkName: { color: '#222', fontWeight: '700' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   date: { color: '#888' },
   status: { color: '#2E7D32', fontWeight: '700' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: '#666', marginTop: 20 },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  filterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+  },
+  filterButtonActive: {
+    backgroundColor: '#2196F3',
+  },
+  filterButtonText: {
+    color: '#333',
+    fontWeight: '600',
+  },
+  filterButtonActiveText: {
+    color: '#fff',
+  },
 });
 
 export default PoachingTabsScreen;

@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import ApiService from '../services/ApiService';
+import { useAuth } from '../contexts/AuthContext';
 
 const statusColor = (status) => {
   const s = (status || '').toString().toLowerCase();
@@ -48,6 +49,24 @@ const PoachingAlertsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSeverity, setSelectedSeverity] = useState('All');
+  const { userData } = useAuth();
+
+  // Determine officer's assigned park id/name if available
+  const officerParkId = userData?.park?.id || userData?.parkId || userData?.assignedParkId || userData?.parkId;
+  const officerParkName = userData?.park?.name || userData?.parkName || null;
+
+  // Some emergency alerts are stored with a boolean `emergency` flag,
+  // but others are saved as a special species value (e.g. "Emergency Alert").
+  // Treat either case as an emergency so all officers see these alerts.
+  const isEmergencyIncident = (it) => {
+    if (!it) return false;
+    if (it.emergency) return true;
+    // species may be exactly "Emergency Alert" or contain the word emergency
+    if (it.species && String(it.species).toLowerCase().includes('emergency')) return true;
+    // fallback: description might mention emergency as well
+    if (it.description && String(it.description).toLowerCase().includes('emergency')) return true;
+    return false;
+  };
 
   const loadIncidents = useCallback(async () => {
     try {
@@ -162,6 +181,14 @@ const PoachingAlertsScreen = ({ navigation }) => {
         dateText = isNaN(dateObj.getTime()) ? d : dateObj.toLocaleString();
       }
     }
+    // Show officer's assigned park name for officers when available; otherwise use incident park
+    const locationStr = item.location || formatLatLng(item);
+    let parkDisplay = '';
+    if (userData && userData.role === 'officer' && officerParkName) {
+      parkDisplay = officerParkName;
+    } else if (item.park && item.park.name) {
+      parkDisplay = item.park.name;
+    }
     return (
       <TouchableOpacity
         activeOpacity={0.8}
@@ -188,7 +215,10 @@ const PoachingAlertsScreen = ({ navigation }) => {
               <Text style={styles.speciesText}>{'🐾 ' + (item.species || item.description || 'Unknown')}</Text>
             </View>
           </View>
-              <Text style={styles.meta}>{'📍 ' + (item.location || formatLatLng(item))}</Text>
+              {parkDisplay ? (
+                <Text style={[styles.meta, styles.parkName]} numberOfLines={1} ellipsizeMode="tail">{`🏞️ ${parkDisplay}`}</Text>
+              ) : null}
+              <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">{`📍 ${locationStr}`}</Text>
               {dateText ? <Text style={styles.meta}>{(dateIsDateOnly ? '📅 ' : '🕒 ') + dateText}</Text> : null}
         </View>
       </TouchableOpacity>
@@ -220,6 +250,23 @@ const PoachingAlertsScreen = ({ navigation }) => {
       return sev === selectedSeverity.toLowerCase();
     });
 
+  // Apply officer park filtering: officers should only see incidents for their park,
+  // but emergency incidents should be visible to all officers.
+  const visibleIncidents = (userData && userData.role === 'officer' && (officerParkId || officerParkName))
+    ? filteredIncidents.filter(i => {
+      // show emergencies to all officers (either flagged or saved as species/description)
+      if (isEmergencyIncident(i)) return true;
+      // if incident has park object, compare by id or name
+      if (i.park && typeof i.park === 'object') {
+        if (i.park.id && officerParkId && String(i.park.id) === String(officerParkId)) return true;
+        if (i.park.name && officerParkName && String(i.park.name).toLowerCase() === String(officerParkName).toLowerCase()) return true;
+        return false;
+      }
+      // if no park info on incident, hide it for officers (they only want park-specific feeds)
+      return false;
+    })
+    : filteredIncidents;
+
   return (
     <View style={styles.container}>
       {/* Severity filter bar */}
@@ -239,12 +286,16 @@ const PoachingAlertsScreen = ({ navigation }) => {
         })}
       </View>
       <FlatList
-        data={filteredIncidents}
+        data={visibleIncidents}
         keyExtractor={(item) => item.id || item._id || `${item.date}-${Math.random()}`}
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={incidents.length ? styles.listContainer : styles.emptyContainer}
-        ListEmptyComponent={<Text style={styles.emptyText}>No poaching alerts found.</Text>}
+        ListEmptyComponent={
+          userData && userData.role === 'officer'
+            ? <Text style={styles.emptyText}>No poaching alerts for your park.</Text>
+            : <Text style={styles.emptyText}>No poaching alerts found.</Text>
+        }
       />
     </View>
   );
@@ -318,6 +369,10 @@ const styles = StyleSheet.create({
   meta: {
     color: '#666',
     fontSize: 13,
+  },
+  parkName: {
+    color: '#222',
+    fontWeight: '700',
   },
   statusBadge: {
     paddingHorizontal: 8,

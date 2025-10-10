@@ -283,6 +283,9 @@ export const AuthProvider = ({ children }) => {
         email: authUser.email,
         displayName: profileData.displayName,
         role: profileData.role,
+        // If officer selected, persist assigned park for routing alerts
+        parkId: profileData.parkId || '',
+        parkName: profileData.parkName || '',
         organization: profileData.organization || '',
         phoneNumber: profileData.phoneNumber || '',
         profileImage: profileData.profileImage || '',

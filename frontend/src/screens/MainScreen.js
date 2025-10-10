@@ -106,26 +106,55 @@ const MainScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
 
-            {hasPermission('canViewAnalytics') && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.poachingAnalyticsButton]}
-                onPress={() => navigation.navigate('PoachingAnalytics')}
-                activeOpacity={0.8}>
-                <Text style={styles.buttonIcon}>�️</Text>
-                <Text style={styles.buttonTitle}>Poaching Analytics</Text>
-                <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
-              </TouchableOpacity>
-            )}
+            {/* For officers keep existing order; for others show Report Poaching before Poaching Analytics */}
+            {userData?.role === USER_ROLES.OFFICER ? (
+              <>
+                {hasPermission('canViewAnalytics') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.poachingAnalyticsButton]}
+                    onPress={() => navigation.navigate('PoachingAnalytics')}
+                    activeOpacity={0.8}>
+                    <Text style={styles.buttonIcon}>�️</Text>
+                    <Text style={styles.buttonTitle}>Poaching Analytics</Text>
+                    <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
+                  </TouchableOpacity>
+                )}
 
-            {hasPermission('canAddPoaching') && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.addPoachingButton]}
-                onPress={() => navigation.navigate('AddPoaching')}
-                activeOpacity={0.8}>
-                <Text style={styles.buttonIcon}>🚨</Text>
-                <Text style={styles.buttonTitle}>Report Poaching</Text>
-                <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
-              </TouchableOpacity>
+                {hasPermission('canAddPoaching') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.addPoachingButton]}
+                    onPress={() => navigation.navigate('AddPoaching')}
+                    activeOpacity={0.8}>
+                    <Text style={styles.buttonIcon}>🚨</Text>
+                    <Text style={styles.buttonTitle}>Report Poaching</Text>
+                    <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <>
+                {hasPermission('canAddPoaching') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.addPoachingButton]}
+                    onPress={() => navigation.navigate('AddPoaching')}
+                    activeOpacity={0.8}>
+                    <Text style={styles.buttonIcon}>🚨</Text>
+                    <Text style={styles.buttonTitle}>Report Poaching</Text>
+                    <Text style={styles.buttonSubtitle}>Report incidents & alerts</Text>
+                  </TouchableOpacity>
+                )}
+
+                {hasPermission('canViewAnalytics') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.poachingAnalyticsButton]}
+                    onPress={() => navigation.navigate('PoachingAnalytics')}
+                    activeOpacity={0.8}>
+                    <Text style={styles.buttonIcon}>�️</Text>
+                    <Text style={styles.buttonTitle}>Poaching Analytics</Text>
+                    <Text style={styles.buttonSubtitle}>Monitor protection data</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
 
             {hasPermission('canViewAnalytics') && (
