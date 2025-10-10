@@ -446,6 +446,66 @@ async getRecommendedParks(featureVector) {
     throw error;
   }
 }
+async savePark(parkId) {
+  try {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/parks/save`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ parkId }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.message || 'Park saved successfully';
+    } else {
+      throw new Error(data.error || 'Failed to save park');
+    }
+  } catch (error) {
+    console.error('Error saving park:', error);
+    throw error;
+  }
+}
+async unsavePark(parkId) {
+  try {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/parks/save/${parkId}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.message || 'Park unsaved successfully';
+    } else {
+      throw new Error(data.error || 'Failed to unsave park');
+    }
+  } catch (error) {
+    console.error('Error unsaving park:', error);
+    throw error;
+  }
+}
+async getSavedParks() {
+  try {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/parks/saved`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.data || [];
+    } else {
+      throw new Error(data.error || 'Failed to fetch saved parks');
+    }
+  } catch (error) {
+    console.error('Error fetching saved parks:', error);
+    throw error;
+  }
+}
+
+
 
 }
 

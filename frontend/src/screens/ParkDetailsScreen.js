@@ -20,6 +20,20 @@ export default function ParkDetailsScreen() {
   const [park, setPark] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const handleSavePark = async () => {
+    setSaving(true);
+    setSaveMessage("");
+    try {
+      const msg = await ApiService.savePark(parkId);
+      setSaveMessage(msg);
+    } catch (e) {
+      setSaveMessage(e.message || "Failed to save park");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const fetchPark = async () => {
@@ -115,6 +129,20 @@ export default function ParkDetailsScreen() {
             )
           )}
         </ScrollView>
+
+        <TouchableOpacity
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+          onPress={handleSavePark}
+          disabled={saving}
+        >
+          <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save Park"}</Text>
+        </TouchableOpacity>
+
+        {!!saveMessage && (
+          <View style={styles.saveMessageBox}>
+            <Text style={styles.saveMessageText}>{saveMessage}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.details}>
@@ -165,6 +193,41 @@ export default function ParkDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  saveButton: {
+    backgroundColor: "#388e3c",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
+    shadowColor: "#388e3c",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#a5d6a7",
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  saveMessageBox: {
+    backgroundColor: "#e8f5e9",
+    borderRadius: 12,
+    padding: 8,
+    marginTop: 6,
+    alignSelf: "center",
+    maxWidth: "90%",
+  },
+  saveMessageText: {
+    color: "#388e3c",
+    fontSize: 14,
+    textAlign: "center",
+  },
   container: { flex: 1, backgroundColor: "#f8f8f8" },
   centerContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8f8f8" },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 40 },

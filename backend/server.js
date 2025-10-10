@@ -1615,6 +1615,89 @@ app.put('/api/poaching/:id', authenticateUser, async (req, res) => {
 });
 
 
+app.post('/api/parks/save', authenticateUser, async (req, res) => {
+  try {
+    const { parkId } = req.body;
+
+    if (!parkId) {
+      return res.status(400).json({ success: false, error: 'parkId is required' });
+    }
+
+    const userId = req.user.uid;
+
+    // Get park details from "parks" collection
+    const parkDoc = await db.collection('parks').doc(parkId).get();
+    if (!parkDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Park not found' });
+    }
+
+    const parkData = parkDoc.data();
+
+    // Save under user's savedParks subcollection
+    await db
+      .collection('users')
+      .doc(userId)
+      .collection('savedParks')
+      .doc(parkId)
+      .set({
+        parkId,
+        name: parkData.name,
+        location: parkData.location,
+        photoUrls: parkData.photoUrls || [],
+        category: parkData.category || '',
+        savedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+    res.status(200).json({ success: true, message: 'Park saved successfully' });
+  } catch (error) {
+    console.error('Error saving park:', error);
+    res.status(500).json({ success: false, error: 'Failed to save park' });
+  }
+});
+
+app.delete('/api/parks/save/:parkId', authenticateUser, async (req, res) => {
+  try {
+    const { parkId } = req.params;
+    const userId = req.user.uid;
+
+    await db
+      .collection('users')
+      .doc(userId)
+      .collection('savedParks')
+      .doc(parkId)
+      .delete();
+
+    res.status(200).json({ success: true, message: 'Park unsaved successfully' });
+  } catch (error) {
+    console.error('Error unsaving park:', error);
+    res.status(500).json({ success: false, error: 'Failed to unsave park' });
+  }
+});
+
+app.get('/api/parks/saved', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const snapshot = await db
+      .collection('users')
+      .doc(userId)
+      .collection('savedParks')
+      .orderBy('savedAt', 'desc')
+      .get();
+
+    const savedParks = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.status(200).json({ success: true, data: savedParks });
+  } catch (error) {
+    console.error('Error fetching saved parks:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch saved parks' });
+  }
+});
+
+
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
