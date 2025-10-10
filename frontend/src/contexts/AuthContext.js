@@ -53,6 +53,7 @@ export const AuthProvider = ({ children }) => {
       canAccessParkManagement: true,
       canGetPreferences: true,
       canGetParkDetails: true,
+      canGetAllParks: true,
     },
     [USER_ROLES.DRIVER]: {
       canViewAnimals: true,

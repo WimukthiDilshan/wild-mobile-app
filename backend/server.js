@@ -1470,6 +1470,62 @@ app.delete('/api/parks/:id', authenticateUser, async (req, res) => {
   }
 });
 
+
+app.get('/api/parks', async (req, res) => {
+  try {
+    const snapshot = await db.collection('parks').orderBy('createdAt', 'desc').get();
+
+    if (snapshot.empty) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const parks = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.status(200).json({ success: true, data: parks });
+  } catch (error) {
+    console.error('Error fetching parks:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch parks' });
+  }
+});
+
+app.get('/api/parks/category/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    if (!category) {
+      return res.status(400).json({ success: false, error: 'Category is required' });
+    }
+
+    // Normalize category for consistent comparison
+    const categoryNormalized = category.trim().toLowerCase();
+
+    // Query Firestore
+    const snapshot = await db
+      .collection('parks')
+      .where('categoryLower', '==', categoryNormalized)
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const parks = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.status(200).json({ success: true, data: parks });
+  } catch (error) {
+    console.error('Error fetching parks by category:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch parks by category' });
+  }
+});
+
+
 // Poaching analytics endpoint
 app.get('/api/poaching/analytics', async (req, res) => {
   try {

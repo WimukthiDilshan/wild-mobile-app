@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import axios from "axios";
+import ApiService from "../services/ApiService";
 
 export default function RecommendationsScreen() {
   const route = useRoute();
@@ -122,6 +123,20 @@ useEffect(() => {
     </TouchableOpacity>
   );
 
+  const [allParksLoading, setAllParksLoading] = useState(false);
+
+  const handleViewAllParks = async () => {
+    setAllParksLoading(true);
+    try {
+      const parks = await ApiService.fetchParks(); // getAllParks
+      navigation.navigate("AllParks", { parks });
+    } catch (e) {
+      alert("Failed to fetch all parks. Please try again.");
+    } finally {
+      setAllParksLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>🌲 Recommended Parks for You</Text>
@@ -139,6 +154,15 @@ useEffect(() => {
       ) : (
         <Text style={styles.empty}>No recommendations found.</Text>
       )}
+
+      <TouchableOpacity
+        style={[styles.largeButton, styles.buttonPrimary]}
+        onPress={handleViewAllParks}
+        activeOpacity={0.85}
+        disabled={allParksLoading}
+      >
+        <Text style={styles.buttonText}>{allParksLoading ? "Loading Parks..." : "View All Parks"}</Text>
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.largeButton, styles.buttonPrimary]}

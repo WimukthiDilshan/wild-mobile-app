@@ -25,7 +25,7 @@ import RecommendationsScreen from './src/screens/RecommendationsScreen';
 import SafariStartScreen from './src/screens/SafariStartScreen';
 import SafariMapScreen from './src/screens/SafariMapScreen';
 import ParkDetailsScreen from './src/screens/ParkDetailsScreen';
-
+import AllParksScreen from './src/screens/AllParksScreen';
 const Stack = createNativeStackNavigator();
 
 // Loading Screen Component
@@ -185,6 +185,14 @@ const AppNavigator = () => {
           options={{ headerShown: false }}
         />
       )}
+      {hasPermission('canGetAllParks') && (
+        <Stack.Screen 
+          name="AllParks" 
+          component={AllParksScreen} 
+          options={{ headerShown: false }}
+        />
+      )}
+
 
     </Stack.Navigator>
   );

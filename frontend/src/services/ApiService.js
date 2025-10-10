@@ -504,6 +504,45 @@ async getSavedParks() {
     throw error;
   }
 }
+async getAllParks() {
+  try {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/parks`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.data || [];
+    } else {
+      throw new Error(data.error || 'Failed to fetch parks');
+    }
+  } catch (error) {
+    console.error('Error fetching parks:', error);
+    throw error;
+  }
+}
+async getParksByCategory(category) {
+  try {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/parks/category/${encodeURIComponent(category)}`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.data || [];
+    } else {
+      throw new Error(data.error || 'Failed to fetch parks by category');
+    }
+  } catch (error) {
+    console.error('Error fetching parks by category:', error);
+    throw error;
+  }
+}
+
 
 
 
