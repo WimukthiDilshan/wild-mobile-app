@@ -8,6 +8,7 @@ import {
   Dimensions,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -59,7 +60,14 @@ const MainScreen = ({ navigation }) => {
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.appName}>🌲 Forest Guardian</Text>
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../assets/images/mobileapp.jpg')} 
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.appName}>ECHO TRACK</Text>
+        </View>
         <Text style={styles.subtitle}>Wildlife Monitoring & Protection System</Text>
         
     {/* Start Safari Button - Only for Visitors and Drivers */}
@@ -77,7 +85,7 @@ const MainScreen = ({ navigation }) => {
       {/* Main Content */}
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <Text style={styles.welcomeText}>Welcome to Forest Guardian</Text>
+          <Text style={styles.welcomeText}>Welcome to ECHO TRACK</Text>
           <Text style={styles.description}>
             Monitor, protect, and analyze forest wildlife data
           </Text>
@@ -101,8 +109,8 @@ const MainScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('InsertAnimals')}
                 activeOpacity={0.8}>
                 <Text style={styles.buttonIcon}>🦁</Text>
-                <Text style={styles.buttonTitle}>Insert Animals</Text>
-                <Text style={styles.buttonSubtitle}>Add new wildlife data</Text>
+                <Text style={styles.buttonTitle}>Wildlife Discovery</Text>
+                <Text style={styles.buttonSubtitle}>Log new species sightings</Text>
               </TouchableOpacity>
             )}
 
@@ -252,12 +260,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  headerLogo: {
+    width: 60,
+    height: 60,
+    marginBottom: 10,
+    borderRadius: 30,
+  },
   appName: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 8,
+    letterSpacing: 2,
   },
   subtitle: {
     fontSize: 16,

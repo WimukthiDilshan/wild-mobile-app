@@ -75,7 +75,7 @@ const HomeScreen = ({ navigation }) => {
         
         {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>🌲 Forest Animals Monitor</Text>
+          <Text style={styles.headerTitle}>🔊 ECHO TRACK Monitor</Text>
           <Text style={styles.headerSubtitle}>
             Tracking {animals.length} species across various forest locations
           </Text>

@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -78,7 +79,7 @@ const LoginScreen = ({ navigation }) => {
       
       if (result.success) {
         // Navigation will be handled by App.js based on auth state
-        Alert.alert('Welcome! 🎉', 'You have successfully logged in to Forest Monitor.');
+        Alert.alert('Welcome! 🎉', 'You have successfully logged in to ECHO TRACK.');
       } else {
         Alert.alert('Login Failed', result.error || 'An error occurred during login.');
       }
@@ -98,8 +99,12 @@ const LoginScreen = ({ navigation }) => {
           
           {/* Header Section */}
           <View style={styles.header}>
-            <Text style={styles.logoEmoji}>🌲</Text>
-            <Text style={styles.title}>Forest Monitor</Text>
+            <Image 
+              source={require('../assets/images/mobileapp.jpg')} 
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>ECHO TRACK</Text>
             <Text style={styles.subtitle}>Wildlife Conservation & Protection</Text>
           </View>
 
@@ -217,9 +222,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
-  logoEmoji: {
-    fontSize: 60,
+  logoImage: {
+    width: 100,
+    height: 100,
     marginBottom: 10,
+    borderRadius: 50,
   },
   title: {
     fontSize: 32,
