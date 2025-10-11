@@ -100,11 +100,11 @@ const LoginScreen = ({ navigation }) => {
           {/* Header Section */}
           <View style={styles.header}>
             <Image 
-              source={require('../assets/images/mobileapp.jpg')} 
+              source={require('../assets/images/mobileapp.png')} 
               style={styles.logoImage}
               resizeMode="contain"
             />
-            <Text style={styles.title}>ECHO TRACK</Text>
+            <Text style={styles.title}>ECO TRACK</Text>
             <Text style={styles.subtitle}>Wildlife Conservation & Protection</Text>
           </View>
 

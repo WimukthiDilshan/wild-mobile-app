@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StatusBar, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { StatusBar, View, Text, ActivityIndicator, StyleSheet, Image } from 'react-native';
 
 // Context
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
@@ -31,8 +31,12 @@ const Stack = createNativeStackNavigator();
 // Loading Screen Component
 const LoadingScreen = () => (
   <View style={styles.loadingContainer}>
-    <Text style={styles.logoEmoji}>🌲</Text>
-    <Text style={styles.loadingTitle}>Forest Monitor</Text>
+    <Image
+      source={require('./src/assets/images/mobileapp.png')}
+      style={styles.logoImage}
+      resizeMode="contain"
+    />
+    <Text style={styles.loadingTitle}>ECHO TRACK</Text>
     <ActivityIndicator size="large" color="#4CAF50" style={styles.loadingSpinner} />
     <Text style={styles.loadingText}>Loading...</Text>
   </View>
@@ -235,6 +239,12 @@ const styles = StyleSheet.create({
   logoEmoji: {
     fontSize: 80,
     marginBottom: 20,
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    marginBottom: 10,
+    borderRadius: 40,
   },
   loadingTitle: {
     fontSize: 28,

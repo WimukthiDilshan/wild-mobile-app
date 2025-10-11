@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Image,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import ApiService from '../services/ApiService';
@@ -158,7 +159,7 @@ const SignUpScreen = ({ navigation }) => {
       
       if (result.success) {
         Alert.alert(
-          'Welcome to Forest Monitor! 🎉',
+          'Welcome to ECO TRACK! 🎉',
           `Your account has been created successfully as a ${roleOptions.find(r => r.id === formData.role)?.name}.`,
           [
             {
@@ -225,8 +226,12 @@ const SignUpScreen = ({ navigation }) => {
           
           {/* Header Section */}
           <View style={styles.header}>
-            <Text style={styles.logoEmoji}>🌲</Text>
-            <Text style={styles.title}>Join Forest Monitor</Text>
+            <Image
+              source={require('../assets/images/mobileapp.png')}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Join ECO TRACK!</Text>
             <Text style={styles.subtitle}>Create your wildlife conservation account</Text>
           </View>
 
@@ -525,6 +530,12 @@ const styles = StyleSheet.create({
   logoEmoji: {
     fontSize: 60,
     marginBottom: 10,
+  },
+  headerLogo: {
+    width: 80,
+    height: 80,
+    marginBottom: 10,
+    borderRadius: 40,
   },
   title: {
     fontSize: 32,

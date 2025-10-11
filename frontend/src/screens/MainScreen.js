@@ -62,11 +62,11 @@ const MainScreen = ({ navigation }) => {
         </View>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/images/mobileapp.jpg')} 
+            source={require('../assets/images/mobileapp.png')} 
             style={styles.headerLogo}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>ECHO TRACK</Text>
+          <Text style={styles.appName}>ECO TRACK</Text>
         </View>
         <Text style={styles.subtitle}>Wildlife Monitoring & Protection System</Text>
         
@@ -85,7 +85,7 @@ const MainScreen = ({ navigation }) => {
       {/* Main Content */}
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <Text style={styles.welcomeText}>Welcome to ECHO TRACK</Text>
+          <Text style={styles.welcomeText}>Welcome to ECO TRACK</Text>
           <Text style={styles.description}>
             Monitor, protect, and analyze forest wildlife data
           </Text>
@@ -224,8 +224,8 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 40,
+    paddingTop: 20,
+    paddingBottom: 20,
     backgroundColor: '#2E7D32',
   },
   headerTop: {
@@ -262,32 +262,32 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   headerLogo: {
-    width: 60,
-    height: 60,
-    marginBottom: 10,
-    borderRadius: 30,
+    width: 72,
+    height: 72,
+    marginBottom: 8,
+    borderRadius: 36,
   },
   appName: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
     letterSpacing: 2,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#A5D6A7',
     textAlign: 'center',
   },
   startSafariButton: {
     backgroundColor: '#FFA726',
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 26,
+    borderRadius: 22,
+    marginTop: 12,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingTop: 20,
     paddingBottom: 20,
     alignItems: 'center',
     minHeight: height - 200, // Ensure enough space for all buttons
