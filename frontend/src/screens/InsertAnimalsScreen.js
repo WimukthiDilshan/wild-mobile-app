@@ -42,15 +42,15 @@ const InsertAnimalsScreen = ({ navigation }) => {
 
   // Predefined locations
   const wildlifeLocations = [
-    { id: 1, name: 'Amazon Rainforest', emoji: '🌳', region: 'South America' },
-    { id: 2, name: 'African Savanna', emoji: '🦁', region: 'Africa' },
-    { id: 3, name: 'Borneo Forest', emoji: '🌲', region: 'Asia' },
-    { id: 4, name: 'Madagascar', emoji: '🐾', region: 'Africa' },
-    { id: 5, name: 'Yellowstone National Park', emoji: '🏔️', region: 'North America' },
-    { id: 6, name: 'Serengeti', emoji: '🦓', region: 'Africa' },
-    { id: 7, name: 'Galapagos Islands', emoji: '🐢', region: 'South America' },
-    { id: 8, name: 'Great Barrier Reef', emoji: '🐠', region: 'Oceania' },
-    { id: 9, name: 'Arctic Tundra', emoji: '🐻‍❄️', region: 'Arctic' },
+    { id: 1, name: 'Yala National Park', emoji: '🐆', region: 'Southern Province' },
+    { id: 2, name: 'Wilpattu National Park', emoji: '🐻', region: 'North Western Province' },
+    { id: 3, name: 'Udawalawe National Park', emoji: '🐘', region: 'Sabaragamuwa Province' },
+    { id: 4, name: 'Sinharaja Forest Reserve', emoji: '🌳', region: 'Sabaragamuwa Province' },
+    { id: 5, name: 'Horton Plains National Park', emoji: '🦌', region: 'Central Province' },
+    { id: 6, name: 'Minneriya National Park', emoji: '🐘', region: 'North Central Province' },
+    { id: 7, name: 'Kumana National Park', emoji: '🦅', region: 'Eastern Province' },
+    { id: 8, name: 'Bundala National Park', emoji: '🦩', region: 'Southern Province' },
+    { id: 9, name: 'Knuckles Mountain Range', emoji: '🏔️', region: 'Central Province' },
     { id: 10, name: 'Custom Location', emoji: '📍', region: 'Other' },
   ];
 
