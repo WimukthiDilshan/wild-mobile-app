@@ -488,6 +488,9 @@ app.post('/api/animals', authenticateUser, async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
+    console.log('🐾 Received animal data from frontend:', { name, location, count, habitat, status, description });
+    console.log('💾 Saving to Firestore:', animalData);
+    
     const docRef = await db.collection('animals').add(animalData);
     
     res.status(201).json({
@@ -1441,14 +1444,6 @@ app.post('/api/recommend', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
 // Add new park
 app.post('/api/parks', authenticateUser, async (req, res) => {
   try {
@@ -1784,39 +1779,6 @@ app.get('/api/poaching/:id', optionalAuth, async (req, res) => {
     console.error('Error fetching incident by id:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch incident' });
   }
-});
-
-
-app.post('/api/recommend', (req, res) => {
-  const input = JSON.stringify(req.body);
-
-  const py = spawn('python', ['python/predict.py', input]);
-
-  let data = '';
-  let error = '';
-
-  py.stdout.on('data', (chunk) => {
-    data += chunk.toString();
-  });
-
-  py.stderr.on('data', (chunk) => {
-    error += chunk.toString();
-  });
-
-  py.on('close', (code) => {
-    if (error) {
-      return res.status(500).json({ success: false, error });
-    }
-    try {
-      // Wrap Python output in expected format
-      res.json({
-        success: true,
-        data: { topParks: JSON.parse(data) }
-      });
-    } catch (e) {
-      res.status(500).json({ success: false, error: 'Invalid JSON from Python', raw: data });
-    }
-  });
 });
 
 // Update a poaching incident (status or other small updates) - requires authentication

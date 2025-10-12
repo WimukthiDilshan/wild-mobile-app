@@ -39,6 +39,7 @@ const SafariMapScreen = ({ navigation, route }) => {
   const [pinnedLocation, setPinnedLocation] = useState(null);
   const [animalMarkers, setAnimalMarkers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
+  const [showResearcherFields, setShowResearcherFields] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -88,17 +89,42 @@ const SafariMapScreen = ({ navigation, route }) => {
           .get();
         
         const markers = [];
+        const currentTime = new Date();
+        const fiveHoursInMs = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+        
+        // Batch for deleting old markers
+        const batch = firestore().batch();
+        let hasOldMarkers = false;
+        
         markersSnapshot.forEach(doc => {
           const data = doc.data();
-          markers.push({
-            id: doc.id,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            name: data.name,
-            emoji: data.emoji,
-            count: data.count,
-          });
+          const markerTime = new Date(data.addedAt);
+          const timeDifference = currentTime - markerTime;
+          
+          // Check if marker is older than 5 hours
+          if (timeDifference > fiveHoursInMs) {
+            // Mark for deletion
+            batch.delete(doc.ref);
+            hasOldMarkers = true;
+          } else {
+            // Keep marker if less than 5 hours old
+            markers.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              name: data.name,
+              emoji: data.emoji,
+              count: data.count,
+              addedAt: data.addedAt,
+            });
+          }
         });
+        
+        // Delete old markers from Firestore
+        if (hasOldMarkers) {
+          await batch.commit();
+          console.log('Old animal markers removed (older than 5 hours)');
+        }
         
         setAnimalMarkers(markers);
       } catch (error) {
@@ -127,6 +153,7 @@ const SafariMapScreen = ({ navigation, route }) => {
   }, []);
 
   const handleInputChange = (field, value) => {
+    console.log(`🔄 Form field updated: ${field} = ${value}`);
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -154,16 +181,18 @@ const SafariMapScreen = ({ navigation, route }) => {
         name: formData.name.trim(),
         location: park?.name || 'Safari Location',
         count: parseInt(formData.count),
-        habitat: formData.habitat.trim(),
-        status: formData.status,
-        description: formData.description.trim(),
+        habitat: formData.habitat ? formData.habitat.trim() : '',
+        status: formData.status || 'Not Evaluated',
+        description: formData.description ? formData.description.trim() : '',
         addedBy: userData?.displayName || userData?.email || 'Unknown User',
         addedByUserId: userData?.uid || null,
         addedByRole: userData?.role || 'unknown',
         addedAt: new Date().toISOString(),
       };
 
-      await ApiService.addAnimal(animalData);
+      console.log('📝 Submitting animal data:', animalData);
+      const savedAnimal = await ApiService.addAnimal(animalData);
+      console.log('✅ Animal saved successfully:', savedAnimal);
       
       // Add animal marker with emoji if location was pinned
       if (pinnedLocation) {
@@ -216,6 +245,7 @@ const SafariMapScreen = ({ navigation, route }) => {
                 status: 'Not Evaluated',
                 description: '',
               });
+              setShowResearcherFields(false);
               setShowFormModal(false);
             },
           },
@@ -460,7 +490,10 @@ const SafariMapScreen = ({ navigation, route }) => {
         visible={showFormModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowFormModal(false)}
+        onRequestClose={() => {
+          setShowResearcherFields(false);
+          setShowFormModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.formModalContainer}>
@@ -468,7 +501,10 @@ const SafariMapScreen = ({ navigation, route }) => {
               <Text style={styles.formModalTitle}>🦁 Add Wildlife Data</Text>
               <TouchableOpacity
                 style={styles.formCloseButton}
-                onPress={() => setShowFormModal(false)}
+                onPress={() => {
+                  setShowResearcherFields(false);
+                  setShowFormModal(false);
+                }}
               >
                 <Text style={styles.formCloseButtonText}>✕</Text>
               </TouchableOpacity>
@@ -502,49 +538,76 @@ const SafariMapScreen = ({ navigation, route }) => {
                 />
               </View>
 
-              {/* Habitat Input */}
-              <View style={styles.formInputGroup}>
-                <Text style={styles.formLabel}>🌿 Habitat Type</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="e.g., Dense forest, Grasslands, Wetlands"
-                  placeholderTextColor="#999"
-                  value={formData.habitat}
-                  onChangeText={(value) => handleInputChange('habitat', value)}
-                />
-              </View>
+              {/* Toggle Button for Researcher Fields */}
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  showResearcherFields && styles.toggleButtonActive
+                ]}
+                onPress={() => setShowResearcherFields(!showResearcherFields)}
+              >
+                <Text style={[
+                  styles.toggleButtonText,
+                  showResearcherFields && styles.toggleButtonTextActive
+                ]}>
+                  {showResearcherFields ? '📊 Hide Researcher Fields' : '🔬 Need to Help Researcher?'}
+                </Text>
+                <Text style={[
+                  styles.toggleButtonIcon,
+                  showResearcherFields && styles.toggleButtonIconActive
+                ]}>
+                  {showResearcherFields ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
 
-              {/* Conservation Status */}
-              <View style={styles.formInputGroup}>
-                <Text style={styles.formLabel}>⚠️ Conservation Status</Text>
-                <TouchableOpacity
-                  style={[styles.formInput, styles.formDropdownInput]}
-                  onPress={() => setShowStatusModal(true)}
-                >
-                  <View style={styles.formStatusContainer}>
-                    <Text style={styles.formStatusEmoji}>
-                      {conservationStatuses.find(s => s.name === formData.status)?.emoji}
-                    </Text>
-                    <Text style={styles.formInputText}>{formData.status}</Text>
+              {/* Optional Fields (Only shown when toggle is active) */}
+              {showResearcherFields && (
+                <>
+                  {/* Habitat Input */}
+                  <View style={styles.formInputGroup}>
+                    <Text style={styles.formLabel}>🌿 Habitat Type (Optional)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="e.g., Dense forest, Grasslands, Wetlands"
+                      placeholderTextColor="#999"
+                      value={formData.habitat}
+                      onChangeText={(value) => handleInputChange('habitat', value)}
+                    />
                   </View>
-                  <Text style={styles.formDropdownIcon}>▼</Text>
-                </TouchableOpacity>
-              </View>
 
-              {/* Description */}
-              <View style={styles.formInputGroup}>
-                <Text style={styles.formLabel}>📝 Additional Notes</Text>
-                <TextInput
-                  style={[styles.formInput, styles.formMultilineInput]}
-                  placeholder="Any additional observations or notes..."
-                  placeholderTextColor="#999"
-                  value={formData.description}
-                  onChangeText={(value) => handleInputChange('description', value)}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
+                  {/* Conservation Status */}
+                  <View style={styles.formInputGroup}>
+                    <Text style={styles.formLabel}>⚠️ Conservation Status (Optional)</Text>
+                    <TouchableOpacity
+                      style={[styles.formInput, styles.formDropdownInput]}
+                      onPress={() => setShowStatusModal(true)}
+                    >
+                      <View style={styles.formStatusContainer}>
+                        <Text style={styles.formStatusEmoji}>
+                          {conservationStatuses.find(s => s.name === formData.status)?.emoji}
+                        </Text>
+                        <Text style={styles.formInputText}>{formData.status}</Text>
+                      </View>
+                      <Text style={styles.formDropdownIcon}>▼</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Description */}
+                  <View style={styles.formInputGroup}>
+                    <Text style={styles.formLabel}>📝 Additional Notes (Optional)</Text>
+                    <TextInput
+                      style={[styles.formInput, styles.formMultilineInput]}
+                      placeholder="Any additional observations or notes..."
+                      placeholderTextColor="#999"
+                      value={formData.description}
+                      onChangeText={(value) => handleInputChange('description', value)}
+                      multiline
+                      numberOfLines={3}
+                      textAlignVertical="top"
+                    />
+                  </View>
+                </>
+              )}
 
               {/* Submit Button */}
               <TouchableOpacity
@@ -590,12 +653,11 @@ const SafariMapScreen = ({ navigation, route }) => {
                   onPress={() => {
                     if (item.name === 'Custom Species') {
                       setShowSpeciesModal(false);
-                      Alert.prompt(
+                      // Note: Alert.prompt is iOS-only, so we'll use a simple alert for Android compatibility
+                      Alert.alert(
                         'Custom Species',
-                        'Enter the animal species name:',
-                        (text) => {
-                          if (text) handleInputChange('name', text);
-                        }
+                        'Please type the species name in the text field above after closing this dialog.',
+                        [{ text: 'OK' }]
                       );
                     } else {
                       handleInputChange('name', item.name);
@@ -965,6 +1027,44 @@ const styles = StyleSheet.create({
   formStatusEmoji: {
     fontSize: 18,
     marginRight: 8,
+  },
+  // Toggle Button Styles
+  toggleButton: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#2196F3',
+    borderColor: '#1976D2',
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2196F3',
+    flex: 1,
+  },
+  toggleButtonTextActive: {
+    color: 'white',
+  },
+  toggleButtonIcon: {
+    fontSize: 14,
+    color: '#2196F3',
+    marginLeft: 10,
+  },
+  toggleButtonIconActive: {
+    color: 'white',
   },
   formSubmitButton: {
     backgroundColor: '#4CAF50',
